@@ -196,15 +196,25 @@ const Dashboard = () => {
                             </Stack>
                             <FormControl fullWidth>
                                 <Select
-                                    value={selectedYear}
+                                    value={selectedYear || 'placeholder-year'}
                                     label="Year"
-                                    onChange={(e: SelectChangeEvent<number | string>) => setSelectedYear(e.target.value as number)}
+                                    onChange={(e: SelectChangeEvent<number | string>) => {
+                                        if (e.target.value !== 'placeholder-year') {
+                                            setSelectedYear(e.target.value as number);
+                                        }
+                                    }}
+                                    displayEmpty
                                     sx={{
                                         '& .MuiSelect-select': {
                                             py: 1.5,
                                         }
                                     }}
                                 >
+                                    <MenuItem value="placeholder-year" disabled>
+                                        <Typography variant="body2" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+                                            Select a season...
+                                        </Typography>
+                                    </MenuItem>
                                     {years.map((year) => (
                                         <MenuItem key={year} value={year}>{year}</MenuItem>
                                     ))}
@@ -231,15 +241,25 @@ const Dashboard = () => {
                             </Stack>
                             <FormControl fullWidth disabled={!selectedYear}>
                                 <Select
-                                    value={selectedLocation}
+                                    value={selectedLocation || 'placeholder-location'}
                                     label="Location"
-                                    onChange={(e: SelectChangeEvent<string>) => setSelectedLocation(e.target.value)}
+                                    onChange={(e: SelectChangeEvent<string>) => {
+                                        if (e.target.value !== 'placeholder-location') {
+                                            setSelectedLocation(e.target.value);
+                                        }
+                                    }}
+                                    displayEmpty
                                     sx={{
                                         '& .MuiSelect-select': {
                                             py: 1.5,
                                         }
                                     }}
                                 >
+                                    <MenuItem value="placeholder-location" disabled>
+                                        <Typography variant="body2" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+                                            {selectedYear ? 'Select a location...' : 'Select a Season first'}
+                                        </Typography>
+                                    </MenuItem>
                                     {locations.map((location) => (
                                         <MenuItem key={location} value={location}>{location}</MenuItem>
                                     ))}
@@ -266,15 +286,25 @@ const Dashboard = () => {
                             </Stack>
                             <FormControl fullWidth disabled={!selectedLocation}>
                                 <Select
-                                    value={sessions.find(s => s.session_key === selectedSessionKey)?.session_name || ''}
+                                    value={sessions.find(s => s.session_key === selectedSessionKey)?.session_name || 'placeholder-session'}
                                     label="Session"
-                                    onChange={handleSessionChange}
+                                    onChange={(e: SelectChangeEvent<string>) => {
+                                        if (e.target.value !== 'placeholder-session') {
+                                            handleSessionChange(e);
+                                        }
+                                    }}
+                                    displayEmpty
                                     sx={{
                                         '& .MuiSelect-select': {
                                             py: 1.5,
                                         }
                                     }}
                                 >
+                                    <MenuItem value="placeholder-session" disabled>
+                                        <Typography variant="body2" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+                                            {selectedLocation ? 'Select a session...' : 'Select a Location first'}
+                                        </Typography>
+                                    </MenuItem>
                                     {sessions.map((session) => (
                                         <MenuItem key={session.session_key} value={session.session_name}>{session.session_name}</MenuItem>
                                     ))}
