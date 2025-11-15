@@ -1,11 +1,16 @@
 import Dashboard from './components/Dashboard.tsx';
+import { ThemeProvider } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
+import theme from './theme';
 
 function App() {
   return (
-    <div className="App">
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
       <Dashboard />
-    </div>
+    </ThemeProvider>
   );
 }
 
 export default App;
+

@@ -1,5 +1,36 @@
 import { useState, useEffect } from 'react';
 import { getYears, getRacesForYear, getSessionResults } from '../services/api';
+import {
+    Box,
+    Grid,
+    Typography,
+    FormControl,
+    InputLabel,
+    Select,
+    MenuItem,
+    Table,
+    TableContainer,
+    TableHead,
+    TableBody,
+    TableRow,
+    TableCell,
+    SelectChangeEvent,
+    FormGroup,
+    FormControlLabel,
+    Checkbox,
+    Menu,
+    IconButton,
+    Card,
+    CardContent,
+    Stack,
+    Chip,
+    Divider,
+    CircularProgress
+} from '@mui/material';
+import TuneIcon from '@mui/icons-material/Tune';
+import EmojiFlagsIcon from '@mui/icons-material/EmojiFlags';
+import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
+import SportsMotorsportsIcon from '@mui/icons-material/SportsMotorsports';
 
 interface Race {
     session_key: number;
@@ -24,15 +55,51 @@ interface EnrichedF1SessionResult {
     last_name: string;
 }
 
+const formatDuration = (seconds: number | null | string) => {
+    if (seconds === null || typeof seconds === 'string') {
+        return '';
+    }
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    const ms = Math.round((seconds - Math.floor(seconds)) * 1000);
+
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
+};
+
 const Dashboard = () => {
     const [years, setYears] = useState<number[]>([]);
-    const [selectedYear, setSelectedYear] = useState<number | null>(null);
+    const [selectedYear, setSelectedYear] = useState<number | string>('');
     const [races, setRaces] = useState<Race[]>([]);
     const [locations, setLocations] = useState<string[]>([]);
-    const [selectedLocation, setSelectedLocation] = useState<string | null>(null);
+    const [selectedLocation, setSelectedLocation] = useState<string>('');
     const [sessions, setSessions] = useState<Race[]>([]);
     const [selectedSessionKey, setSelectedSessionKey] = useState<number | null>(null);
     const [sessionResults, setSessionResults] = useState<EnrichedF1SessionResult[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [columnVisibility, setColumnVisibility] = useState({
+        laps: true,
+        gapToLeader: true,
+        dnf: true,
+        dns: true,
+        dsq: true,
+    });
+    const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+
+    const handleSettingsClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+        setAnchorEl(event.currentTarget);
+    };
+
+    const handleSettingsClose = () => {
+        setAnchorEl(null);
+    };
+
+    const handleColumnVisibilityChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        setColumnVisibility({
+            ...columnVisibility,
+            [event.target.name]: event.target.checked,
+        });
+    };
 
     useEffect(() => {
         const fetchYears = async () => {
@@ -45,11 +112,11 @@ const Dashboard = () => {
     useEffect(() => {
         if (selectedYear) {
             const fetchRaces = async () => {
-                const data = await getRacesForYear(selectedYear);
+                const data = await getRacesForYear(selectedYear as number);
                 setRaces(data);
-                const uniqueLocations = [...new Set(data.map((race: Race) => race.location))];
+                const uniqueLocations: string[] = Array.from(new Set(data.map((race: Race) => race.location)));
                 setLocations(uniqueLocations);
-                setSelectedLocation(null);
+                setSelectedLocation('');
                 setSessions([]);
                 setSelectedSessionKey(null);
                 setSessionResults([]);
@@ -70,14 +137,20 @@ const Dashboard = () => {
     useEffect(() => {
         if (selectedSessionKey) {
             const fetchSessionResults = async () => {
-                const data = await getSessionResults(selectedSessionKey);
-                setSessionResults(data);
+                setLoading(true);
+                try {
+                    const data = await getSessionResults(selectedSessionKey);
+                    setSessionResults(data);
+                } finally {
+                    setLoading(false);
+                }
             };
             fetchSessionResults();
         }
     }, [selectedSessionKey]);
 
-    const handleSessionChange = (sessionName: string) => {
+    const handleSessionChange = (event: SelectChangeEvent<string>) => {
+        const sessionName = event.target.value;
         const session = sessions.find(s => s.session_name === sessionName);
         if (session) {
             setSelectedSessionKey(session.session_key);
@@ -85,69 +158,354 @@ const Dashboard = () => {
     }
 
     return (
-        <div>
-            <h1>F1 Dashboard</h1>
-            <div>
-                <label>Year: </label>
-                <select onChange={(e) => setSelectedYear(Number(e.target.value))} value={selectedYear || ''}>
-                    <option value="" disabled>Select Year</option>
-                    {years.map((year) => (
-                        <option key={year} value={year}>{year}</option>
-                    ))}
-                </select>
-            </div>
-            {selectedYear && locations.length > 0 && (
-                <div>
-                    <label>Location: </label>
-                    <select onChange={(e) => setSelectedLocation(e.target.value)} value={selectedLocation || ''}>
-                        <option value="" disabled>Select Location</option>
-                        {locations.map((location) => (
-                            <option key={location} value={location}>{location}</option>
-                        ))}
-                    </select>
-                </div>
-            )}
-            {selectedLocation && sessions.length > 0 && (
-                <div>
-                    <label>Session: </label>
-                    <select onChange={(e) => handleSessionChange(e.target.value)} defaultValue="">
-                        <option value="" disabled>Select Session</option>
-                        {sessions.map((session) => (
-                            <option key={session.session_key} value={session.session_name}>{session.session_name}</option>
-                        ))}
-                    </select>
-                </div>
-            )}
+        <Box sx={{ 
+            flexGrow: 1, 
+            minHeight: '100vh',
+            background: 'linear-gradient(180deg, #0A0A0A 0%, #0F0F0F 100%)',
+            py: { xs: 3, md: 4 },
+            px: { xs: 2, sm: 3, md: 4 }
+        }}>
+            <Box sx={{ mb: 4 }}>
+                <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
+                    <SportsMotorsportsIcon sx={{ fontSize: 40, color: 'primary.main' }} />
+                    <Typography variant="h1" component="h1">
+                        F1 Dashboard
+                    </Typography>
+                </Stack>
+                <Typography variant="body1" sx={{ color: 'text.secondary', ml: 6 }}>
+                    Explore Formula 1 race results and session data
+                </Typography>
+            </Box>
+
+            <Grid container spacing={3} sx={{ mb: 4 }}>
+                <Grid item xs={12} sm={6} md={4}>
+                    <Card elevation={0} sx={{ 
+                        height: '100%',
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                            transform: 'translateY(-2px)',
+                            boxShadow: '0 8px 24px rgba(225, 6, 0, 0.15)',
+                        }
+                    }}>
+                        <CardContent>
+                            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 2 }}>
+                                <CalendarTodayIcon sx={{ color: 'primary.main', fontSize: 20 }} />
+                                <InputLabel sx={{ fontWeight: 600, color: 'text.primary' }}>
+                                    Season
+                                </InputLabel>
+                            </Stack>
+                            <FormControl fullWidth>
+                                <Select
+                                    value={selectedYear}
+                                    label="Year"
+                                    onChange={(e: SelectChangeEvent<number | string>) => setSelectedYear(e.target.value as number)}
+                                    sx={{
+                                        '& .MuiSelect-select': {
+                                            py: 1.5,
+                                        }
+                                    }}
+                                >
+                                    {years.map((year) => (
+                                        <MenuItem key={year} value={year}>{year}</MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+                        </CardContent>
+                    </Card>
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                    <Card elevation={0} sx={{ 
+                        height: '100%',
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                            transform: 'translateY(-2px)',
+                            boxShadow: '0 8px 24px rgba(225, 6, 0, 0.15)',
+                        }
+                    }}>
+                        <CardContent>
+                            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 2 }}>
+                                <EmojiFlagsIcon sx={{ color: 'primary.main', fontSize: 20 }} />
+                                <InputLabel sx={{ fontWeight: 600, color: 'text.primary' }}>
+                                    Location
+                                </InputLabel>
+                            </Stack>
+                            <FormControl fullWidth disabled={!selectedYear}>
+                                <Select
+                                    value={selectedLocation}
+                                    label="Location"
+                                    onChange={(e: SelectChangeEvent<string>) => setSelectedLocation(e.target.value)}
+                                    sx={{
+                                        '& .MuiSelect-select': {
+                                            py: 1.5,
+                                        }
+                                    }}
+                                >
+                                    {locations.map((location) => (
+                                        <MenuItem key={location} value={location}>{location}</MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+                        </CardContent>
+                    </Card>
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                    <Card elevation={0} sx={{ 
+                        height: '100%',
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                            transform: 'translateY(-2px)',
+                            boxShadow: '0 8px 24px rgba(225, 6, 0, 0.15)',
+                        }
+                    }}>
+                        <CardContent>
+                            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 2 }}>
+                                <SportsMotorsportsIcon sx={{ color: 'primary.main', fontSize: 20 }} />
+                                <InputLabel sx={{ fontWeight: 600, color: 'text.primary' }}>
+                                    Session
+                                </InputLabel>
+                            </Stack>
+                            <FormControl fullWidth disabled={!selectedLocation}>
+                                <Select
+                                    value={sessions.find(s => s.session_key === selectedSessionKey)?.session_name || ''}
+                                    label="Session"
+                                    onChange={handleSessionChange}
+                                    sx={{
+                                        '& .MuiSelect-select': {
+                                            py: 1.5,
+                                        }
+                                    }}
+                                >
+                                    {sessions.map((session) => (
+                                        <MenuItem key={session.session_key} value={session.session_name}>{session.session_name}</MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+                        </CardContent>
+                    </Card>
+                </Grid>
+            </Grid>
             {sessionResults.length > 0 && (
-                <div>
-                    <h2>Session Results</h2>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Position</th>
-                                <th>Driver</th>
-                                <th>Driver Number</th>
-                                <th>Laps</th>
-                                <th>Duration</th>
-                                <th>Gap to Leader</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {sessionResults.map((result) => (
-                                <tr key={result.driver_number}>
-                                    <td>{result.position}</td>
-                                    <td>{result.full_name}</td>
-                                    <td>{result.driver_number}</td>
-                                    <td>{result.number_of_laps}</td>
-                                    <td>{result.duration}</td>
-                                    <td>{result.gap_to_leader}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                <Card elevation={0} sx={{ mt: 2 }}>
+                    <CardContent sx={{ p: 0 }}>
+                        <Box sx={{ 
+                            p: 3, 
+                            pb: 2,
+                            display: 'flex', 
+                            justifyContent: 'space-between', 
+                            alignItems: 'center',
+                            borderBottom: '1px solid',
+                            borderColor: 'divider'
+                        }}>
+                            <Box>
+                                <Typography variant="h2" component="h2" sx={{ mb: 0.5 }}>
+                                    Session Results
+                                </Typography>
+                                <Stack direction="row" spacing={1} flexWrap="wrap">
+                                    {selectedYear && (
+                                        <Chip 
+                                            label={`${selectedYear}`} 
+                                            size="small" 
+                                            sx={{ 
+                                                backgroundColor: 'rgba(225, 6, 0, 0.15)',
+                                                color: 'primary.main',
+                                                fontWeight: 600
+                                            }} 
+                                        />
+                                    )}
+                                    {selectedLocation && (
+                                        <Chip 
+                                            label={selectedLocation} 
+                                            size="small"
+                                            sx={{ 
+                                                backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                                                color: 'text.primary',
+                                            }} 
+                                        />
+                                    )}
+                                    {sessions.find(s => s.session_key === selectedSessionKey)?.session_name && (
+                                        <Chip 
+                                            label={sessions.find(s => s.session_key === selectedSessionKey)?.session_name} 
+                                            size="small"
+                                            sx={{ 
+                                                backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                                                color: 'text.primary',
+                                            }} 
+                                        />
+                                    )}
+                                </Stack>
+                            </Box>
+                            <IconButton
+                                aria-controls="settings-menu"
+                                aria-haspopup="true"
+                                onClick={handleSettingsClick}
+                                sx={{
+                                    border: '1px solid',
+                                    borderColor: 'divider',
+                                    '&:hover': {
+                                        borderColor: 'primary.main',
+                                    }
+                                }}
+                            >
+                                <TuneIcon />
+                            </IconButton>
+                            <Menu
+                                id="settings-menu"
+                                anchorEl={anchorEl}
+                                keepMounted
+                                open={Boolean(anchorEl)}
+                                onClose={handleSettingsClose}
+                                PaperProps={{
+                                    sx: {
+                                        mt: 1,
+                                        minWidth: 200,
+                                    }
+                                }}
+                            >
+                                <Box sx={{ p: 2 }}>
+                                    <Typography variant="body2" sx={{ mb: 1.5, fontWeight: 600, color: 'text.secondary' }}>
+                                        Column Visibility
+                                    </Typography>
+                                    <Divider sx={{ mb: 1.5 }} />
+                                    <FormGroup>
+                                        <FormControlLabel
+                                            control={<Checkbox checked={columnVisibility.laps} onChange={handleColumnVisibilityChange} name="laps" />}
+                                            label="Laps"
+                                        />
+                                        <FormControlLabel
+                                            control={<Checkbox checked={columnVisibility.gapToLeader} onChange={handleColumnVisibilityChange} name="gapToLeader" />}
+                                            label="Gap to Leader"
+                                        />
+                                        <FormControlLabel
+                                            control={<Checkbox checked={columnVisibility.dnf} onChange={handleColumnVisibilityChange} name="dnf" />}
+                                            label="DNF"
+                                        />
+                                        <FormControlLabel
+                                            control={<Checkbox checked={columnVisibility.dns} onChange={handleColumnVisibilityChange} name="dns" />}
+                                            label="DNS"
+                                        />
+                                        <FormControlLabel
+                                            control={<Checkbox checked={columnVisibility.dsq} onChange={handleColumnVisibilityChange} name="dsq" />}
+                                            label="DSQ"
+                                        />
+                                    </FormGroup>
+                                </Box>
+                            </Menu>
+                        </Box>
+                        {loading ? (
+                            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
+                                <CircularProgress size={48} />
+                            </Box>
+                        ) : (
+                            <TableContainer>
+                                <Table>
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell>Position</TableCell>
+                                            <TableCell>Driver</TableCell>
+                                            <TableCell>Driver #</TableCell>
+                                            {columnVisibility.laps && <TableCell>Laps</TableCell>}
+                                            <TableCell>Duration</TableCell>
+                                            {columnVisibility.gapToLeader && <TableCell>Gap to Leader</TableCell>}
+                                            {columnVisibility.dnf && <TableCell>DNF</TableCell>}
+                                            {columnVisibility.dns && <TableCell>DNS</TableCell>}
+                                            {columnVisibility.dsq && <TableCell>DSQ</TableCell>}
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {sessionResults.map((result, index) => (
+                                            <TableRow 
+                                                key={result.driver_number}
+                                                sx={{
+                                                    '&:first-of-type': {
+                                                        backgroundColor: 'rgba(225, 6, 0, 0.08)',
+                                                    }
+                                                }}
+                                            >
+                                                <TableCell>
+                                                    <Chip 
+                                                        label={result.position || '-'} 
+                                                        size="small"
+                                                        sx={{
+                                                            backgroundColor: index === 0 
+                                                                ? 'primary.main' 
+                                                                : result.position === 1 
+                                                                ? 'rgba(225, 6, 0, 0.3)'
+                                                                : 'rgba(255, 255, 255, 0.08)',
+                                                            color: index === 0 ? 'white' : 'text.primary',
+                                                            fontWeight: 700,
+                                                            minWidth: 36,
+                                                        }}
+                                                    />
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                                        {result.full_name}
+                                                    </Typography>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                                                        {result.driver_number}
+                                                    </Typography>
+                                                </TableCell>
+                                                {columnVisibility.laps && (
+                                                    <TableCell>{result.number_of_laps}</TableCell>
+                                                )}
+                                                <TableCell>
+                                                    <Typography 
+                                                        variant="body2" 
+                                                        sx={{ 
+                                                            fontFamily: 'monospace',
+                                                            color: result.position === 1 ? 'primary.main' : 'text.primary',
+                                                            fontWeight: result.position === 1 ? 700 : 400,
+                                                        }}
+                                                    >
+                                                        {formatDuration(result.duration)}
+                                                    </Typography>
+                                                </TableCell>
+                                                {columnVisibility.gapToLeader && (
+                                                    <TableCell>
+                                                        <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                                                            {formatDuration(result.gap_to_leader)}
+                                                        </Typography>
+                                                    </TableCell>
+                                                )}
+                                                {columnVisibility.dnf && (
+                                                    <TableCell>
+                                                        {result.dnf ? (
+                                                            <Chip label="DNF" size="small" color="error" />
+                                                        ) : (
+                                                            <Typography variant="body2" sx={{ color: 'text.secondary' }}>-</Typography>
+                                                        )}
+                                                    </TableCell>
+                                                )}
+                                                {columnVisibility.dns && (
+                                                    <TableCell>
+                                                        {result.dns ? (
+                                                            <Chip label="DNS" size="small" color="warning" />
+                                                        ) : (
+                                                            <Typography variant="body2" sx={{ color: 'text.secondary' }}>-</Typography>
+                                                        )}
+                                                    </TableCell>
+                                                )}
+                                                {columnVisibility.dsq && (
+                                                    <TableCell>
+                                                        {result.dsq ? (
+                                                            <Chip label="DSQ" size="small" color="error" />
+                                                        ) : (
+                                                            <Typography variant="body2" sx={{ color: 'text.secondary' }}>-</Typography>
+                                                        )}
+                                                    </TableCell>
+                                                )}
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+                        )}
+                    </CardContent>
+                </Card>
             )}
-        </div>
+        </Box>
     );
 };
 
