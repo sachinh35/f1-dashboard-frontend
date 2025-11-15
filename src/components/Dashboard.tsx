@@ -539,14 +539,20 @@ const Dashboard = () => {
                                                     </Typography>
                                                 </TableCell>
                                                 <TableCell>
-                                                    <Stack direction="row" spacing={1} alignItems="center">
-                                                        <Typography variant="body2" sx={{ fontSize: '1.2rem' }}>
-                                                            {getCountryFlagEmoji(result.country_code)}
+                                                    {result.country_code ? (
+                                                        <Stack direction="row" spacing={1} alignItems="center">
+                                                            <Typography variant="body2" sx={{ fontSize: '1.2rem' }}>
+                                                                {getCountryFlagEmoji(result.country_code)}
+                                                            </Typography>
+                                                            <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                                                {getCountryName(result.country_code)}
+                                                            </Typography>
+                                                        </Stack>
+                                                    ) : (
+                                                        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                                                            —
                                                         </Typography>
-                                                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                                                            {getCountryName(result.country_code)}
-                                                        </Typography>
-                                                    </Stack>
+                                                    )}
                                                 </TableCell>
                                                 <TableCell>
                                                     <Typography variant="body2" sx={{ color: 'text.secondary' }}>
@@ -662,9 +668,11 @@ const Dashboard = () => {
                                         }
                                         label={
                                             <Stack direction="row" spacing={1} alignItems="center">
-                                                <Typography variant="body2" sx={{ fontSize: '1rem' }}>
-                                                    {getCountryFlagEmoji(result.country_code)}
-                                                </Typography>
+                                                {result.country_code && (
+                                                    <Typography variant="body2" sx={{ fontSize: '1rem' }}>
+                                                        {getCountryFlagEmoji(result.country_code)}
+                                                    </Typography>
+                                                )}
                                                 <Typography variant="body2" sx={{ fontWeight: 500 }}>
                                                     #{result.driver_number} {result.full_name}
                                                 </Typography>

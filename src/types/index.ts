@@ -23,6 +23,6 @@ export interface EnrichedF1SessionResult {
     name_acronym: string;
     first_name: string;
     last_name: string;
-    country_code: string;
+    country_code: string | null;
 }
 

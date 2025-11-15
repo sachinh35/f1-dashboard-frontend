@@ -31,11 +31,17 @@ const COUNTRY_NAME_MAP: { [key: string]: string } = {
     'TWN': 'Taiwan', 'HKG': 'Hong Kong', 'PHL': 'Philippines', 'VNM': 'Vietnam', 'ZAF': 'South Africa',
 };
 
-export const getCountryFlagEmoji = (countryCode: string): string => {
+export const getCountryFlagEmoji = (countryCode: string | null | undefined): string | null => {
+    if (!countryCode) {
+        return null;
+    }
     return FLAG_EMOJI_MAP[countryCode.toUpperCase()] || '🏁';
 };
 
-export const getCountryName = (countryCode: string): string => {
+export const getCountryName = (countryCode: string | null | undefined): string | null => {
+    if (!countryCode) {
+        return null;
+    }
     return COUNTRY_NAME_MAP[countryCode.toUpperCase()] || countryCode;
 };
 
