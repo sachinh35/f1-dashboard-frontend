@@ -53,6 +53,7 @@ interface EnrichedF1SessionResult {
     name_acronym: string;
     first_name: string;
     last_name: string;
+    country_code: string;
 }
 
 const formatDuration = (seconds: number | null | string) => {
@@ -65,6 +66,42 @@ const formatDuration = (seconds: number | null | string) => {
     const ms = Math.round((seconds - Math.floor(seconds)) * 1000);
 
     return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
+};
+
+// Country code to flag emoji mapping (ISO 3166-1 alpha-3 to flag emoji)
+const getCountryFlagEmoji = (countryCode: string): string => {
+    const flagEmojiMap: { [key: string]: string } = {
+        'GBR': '🇬🇧', 'NED': '🇳🇱', 'FRA': '🇫🇷', 'ESP': '🇪🇸', 'GER': '🇩🇪',
+        'AUS': '🇦🇺', 'MEX': '🇲🇽', 'CAN': '🇨🇦', 'FIN': '🇫🇮', 'JPN': '🇯🇵',
+        'CHN': '🇨🇳', 'DEN': '🇩🇰', 'MON': '🇲🇨', 'THA': '🇹🇭', 'NZL': '🇳🇿',
+        'RUS': '🇷🇺', 'POL': '🇵🇱', 'CHE': '🇨🇭', 'AUT': '🇦🇹', 'BEL': '🇧🇪',
+        'ITA': '🇮🇹', 'BRA': '🇧🇷', 'ARG': '🇦🇷', 'VEN': '🇻🇪', 'COL': '🇨🇴',
+        'SAU': '🇸🇦', 'IND': '🇮🇳', 'SGP': '🇸🇬', 'MYS': '🇲🇾', 'IDN': '🇮🇩',
+        'KOR': '🇰🇷', 'ARE': '🇦🇪', 'USA': '🇺🇸', 'IRL': '🇮🇪', 'PRT': '🇵🇹',
+        'CZE': '🇨🇿', 'HUN': '🇭🇺', 'SWE': '🇸🇪', 'NOR': '🇳🇴', 'EST': '🇪🇪',
+        'LTU': '🇱🇹', 'LVA': '🇱🇻', 'ROU': '🇷🇴', 'BGR': '🇧🇬', 'HRV': '🇭🇷',
+        'SVN': '🇸🇮', 'SVK': '🇸🇰', 'ISR': '🇮🇱', 'TUR': '🇹🇷', 'GRC': '🇬🇷',
+        'TWN': '🇹🇼', 'HKG': '🇭🇰', 'PHL': '🇵🇭', 'VNM': '🇻🇳', 'ZAF': '🇿🇦',
+    };
+    return flagEmojiMap[countryCode.toUpperCase()] || '🏁';
+};
+
+// Country code to country name mapping
+const getCountryName = (countryCode: string): string => {
+    const countryNameMap: { [key: string]: string } = {
+        'GBR': 'Great Britain', 'NED': 'Netherlands', 'FRA': 'France', 'ESP': 'Spain', 'GER': 'Germany',
+        'AUS': 'Australia', 'MEX': 'Mexico', 'CAN': 'Canada', 'FIN': 'Finland', 'JPN': 'Japan',
+        'CHN': 'China', 'DEN': 'Denmark', 'MON': 'Monaco', 'THA': 'Thailand', 'NZL': 'New Zealand',
+        'RUS': 'Russia', 'POL': 'Poland', 'CHE': 'Switzerland', 'AUT': 'Austria', 'BEL': 'Belgium',
+        'ITA': 'Italy', 'BRA': 'Brazil', 'ARG': 'Argentina', 'VEN': 'Venezuela', 'COL': 'Colombia',
+        'SAU': 'Saudi Arabia', 'IND': 'India', 'SGP': 'Singapore', 'MYS': 'Malaysia', 'IDN': 'Indonesia',
+        'KOR': 'South Korea', 'ARE': 'UAE', 'USA': 'United States', 'IRL': 'Ireland', 'PRT': 'Portugal',
+        'CZE': 'Czech Republic', 'HUN': 'Hungary', 'SWE': 'Sweden', 'NOR': 'Norway', 'EST': 'Estonia',
+        'LTU': 'Lithuania', 'LVA': 'Latvia', 'ROU': 'Romania', 'BGR': 'Bulgaria', 'HRV': 'Croatia',
+        'SVN': 'Slovenia', 'SVK': 'Slovakia', 'ISR': 'Israel', 'TUR': 'Turkey', 'GRC': 'Greece',
+        'TWN': 'Taiwan', 'HKG': 'Hong Kong', 'PHL': 'Philippines', 'VNM': 'Vietnam', 'ZAF': 'South Africa',
+    };
+    return countryNameMap[countryCode.toUpperCase()] || countryCode;
 };
 
 const Dashboard = () => {
@@ -432,6 +469,7 @@ const Dashboard = () => {
                                         <TableRow>
                                             <TableCell>Position</TableCell>
                                             <TableCell>Driver</TableCell>
+                                            <TableCell>Nationality</TableCell>
                                             <TableCell>Driver #</TableCell>
                                             {columnVisibility.laps && <TableCell>Laps</TableCell>}
                                             <TableCell>Duration</TableCell>
@@ -471,6 +509,16 @@ const Dashboard = () => {
                                                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
                                                         {result.full_name}
                                                     </Typography>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Stack direction="row" spacing={1} alignItems="center">
+                                                        <Typography variant="body2" sx={{ fontSize: '1.2rem' }}>
+                                                            {getCountryFlagEmoji(result.country_code)}
+                                                        </Typography>
+                                                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                                            {getCountryName(result.country_code)}
+                                                        </Typography>
+                                                    </Stack>
                                                 </TableCell>
                                                 <TableCell>
                                                     <Typography variant="body2" sx={{ color: 'text.secondary' }}>
