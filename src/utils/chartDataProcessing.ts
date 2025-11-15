@@ -1,0 +1,100 @@
+/**
+ * Utility functions for processing chart data
+ */
+import { LapData } from '../services/api';
+import { EnrichedF1SessionResult } from '../types';
+
+export interface DriverLapInfo {
+    lap_duration: number | null;
+    is_pit_out_lap: boolean;
+}
+
+export interface ProcessedChartData {
+    data: { [key: string]: number | null | string | boolean }[];
+    maxLapNumber: number;
+}
+
+/**
+ * Process lap data for chart rendering
+ */
+export const processLapDataForChart = (
+    lapData: LapData[],
+    selectedDrivers: number[],
+    sessionResults: EnrichedF1SessionResult[]
+): ProcessedChartData => {
+    // Group lap data by driver (including pit out lap info)
+    const driverLaps: { 
+        [driverNumber: number]: { 
+            [lapNumber: number]: DriverLapInfo
+        } 
+    } = {};
+    
+    selectedDrivers.forEach(driverNum => {
+        driverLaps[driverNum] = {};
+    });
+
+    lapData.forEach(lap => {
+        if (selectedDrivers.includes(lap.driver_number)) {
+            driverLaps[lap.driver_number][lap.lap_number] = {
+                lap_duration: lap.lap_duration,
+                is_pit_out_lap: lap.is_pit_out_lap,
+            };
+        }
+    });
+
+    // Find max lap number across all selected drivers
+    const maxLapNumber = Math.max(
+        ...selectedDrivers.map(driverNum => {
+            const laps = driverLaps[driverNum];
+            return laps ? Math.max(...Object.keys(laps).map(Number), 0) : 0;
+        }),
+        0
+    );
+
+    // Build chart data structure
+    const data: { [key: string]: number | null | string | boolean }[] = [];
+    
+    for (let lapNum = 1; lapNum <= maxLapNumber; lapNum++) {
+        const dataPoint: { [key: string]: number | null | string | boolean } = {
+            lap: `Lap ${lapNum}`,
+            lapNumber: lapNum,
+        };
+
+        selectedDrivers.forEach((driverNum) => {
+            const driverName = sessionResults.find(r => r.driver_number === driverNum)?.full_name || `Driver ${driverNum}`;
+            const lapInfo = driverLaps[driverNum]?.[lapNum];
+            const lapDuration = lapInfo?.lap_duration ?? null;
+            const isPitOutLap = lapInfo?.is_pit_out_lap ?? false;
+            
+            dataPoint[`driver_${driverNum}`] = lapDuration;
+            dataPoint[`driver_${driverNum}_name`] = driverName;
+            dataPoint[`driver_${driverNum}_pit_out`] = isPitOutLap;
+        });
+
+        data.push(dataPoint);
+    }
+
+    return { data, maxLapNumber };
+};
+
+/**
+ * Merge new lap data with existing lap data
+ */
+export const mergeLapData = (existingData: LapData[], newData: LapData[]): LapData[] => {
+    const dataMap = new Map<string, LapData>();
+    
+    // Add existing data to map
+    existingData.forEach(lap => {
+        const key = `${lap.session_key}_${lap.driver_number}_${lap.lap_number}`;
+        dataMap.set(key, lap);
+    });
+    
+    // Add/update with new data
+    newData.forEach(lap => {
+        const key = `${lap.session_key}_${lap.driver_number}_${lap.lap_number}`;
+        dataMap.set(key, lap);
+    });
+    
+    return Array.from(dataMap.values());
+};
+

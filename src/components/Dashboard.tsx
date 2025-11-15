@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getYears, getRacesForYear, getSessionResults, getSessionLapData, LapData } from '../services/api';
 import {
     Box,
@@ -27,113 +27,16 @@ import {
     Divider,
     CircularProgress
 } from '@mui/material';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import TuneIcon from '@mui/icons-material/Tune';
 import EmojiFlagsIcon from '@mui/icons-material/EmojiFlags';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import SportsMotorsportsIcon from '@mui/icons-material/SportsMotorsports';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
-
-interface Race {
-    session_key: number;
-    location: string;
-    session_name: string;
-}
-
-interface EnrichedF1SessionResult {
-    dnf: boolean;
-    dns: boolean;
-    dsq: boolean;
-    driver_number: number;
-    number_of_laps: number;
-    meeting_key: number | string;
-    session_key: number;
-    duration: number | null;
-    gap_to_leader: number | string | null;
-    position: number | null;
-    full_name: string;
-    name_acronym: string;
-    first_name: string;
-    last_name: string;
-    country_code: string;
-}
-
-const formatDuration = (seconds: number | null | string) => {
-    if (seconds === null || typeof seconds === 'string') {
-        return '';
-    }
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = Math.floor(seconds % 60);
-    const ms = Math.round((seconds - Math.floor(seconds)) * 1000);
-
-    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
-};
-
-// Country code to flag emoji mapping (ISO 3166-1 alpha-3 to flag emoji)
-const getCountryFlagEmoji = (countryCode: string): string => {
-    const flagEmojiMap: { [key: string]: string } = {
-        'GBR': '🇬🇧', 'NED': '🇳🇱', 'FRA': '🇫🇷', 'ESP': '🇪🇸', 'GER': '🇩🇪',
-        'AUS': '🇦🇺', 'MEX': '🇲🇽', 'CAN': '🇨🇦', 'FIN': '🇫🇮', 'JPN': '🇯🇵',
-        'CHN': '🇨🇳', 'DEN': '🇩🇰', 'MON': '🇲🇨', 'THA': '🇹🇭', 'NZL': '🇳🇿',
-        'RUS': '🇷🇺', 'POL': '🇵🇱', 'CHE': '🇨🇭', 'AUT': '🇦🇹', 'BEL': '🇧🇪',
-        'ITA': '🇮🇹', 'BRA': '🇧🇷', 'ARG': '🇦🇷', 'VEN': '🇻🇪', 'COL': '🇨🇴',
-        'SAU': '🇸🇦', 'IND': '🇮🇳', 'SGP': '🇸🇬', 'MYS': '🇲🇾', 'IDN': '🇮🇩',
-        'KOR': '🇰🇷', 'ARE': '🇦🇪', 'USA': '🇺🇸', 'IRL': '🇮🇪', 'PRT': '🇵🇹',
-        'CZE': '🇨🇿', 'HUN': '🇭🇺', 'SWE': '🇸🇪', 'NOR': '🇳🇴', 'EST': '🇪🇪',
-        'LTU': '🇱🇹', 'LVA': '🇱🇻', 'ROU': '🇷🇴', 'BGR': '🇧🇬', 'HRV': '🇭🇷',
-        'SVN': '🇸🇮', 'SVK': '🇸🇰', 'ISR': '🇮🇱', 'TUR': '🇹🇷', 'GRC': '🇬🇷',
-        'TWN': '🇹🇼', 'HKG': '🇭🇰', 'PHL': '🇵🇭', 'VNM': '🇻🇳', 'ZAF': '🇿🇦',
-    };
-    return flagEmojiMap[countryCode.toUpperCase()] || '🏁';
-};
-
-// Country code to country name mapping
-const getCountryName = (countryCode: string): string => {
-    const countryNameMap: { [key: string]: string } = {
-        'GBR': 'Great Britain', 'NED': 'Netherlands', 'FRA': 'France', 'ESP': 'Spain', 'GER': 'Germany',
-        'AUS': 'Australia', 'MEX': 'Mexico', 'CAN': 'Canada', 'FIN': 'Finland', 'JPN': 'Japan',
-        'CHN': 'China', 'DEN': 'Denmark', 'MON': 'Monaco', 'THA': 'Thailand', 'NZL': 'New Zealand',
-        'RUS': 'Russia', 'POL': 'Poland', 'CHE': 'Switzerland', 'AUT': 'Austria', 'BEL': 'Belgium',
-        'ITA': 'Italy', 'BRA': 'Brazil', 'ARG': 'Argentina', 'VEN': 'Venezuela', 'COL': 'Colombia',
-        'SAU': 'Saudi Arabia', 'IND': 'India', 'SGP': 'Singapore', 'MYS': 'Malaysia', 'IDN': 'Indonesia',
-        'KOR': 'South Korea', 'ARE': 'UAE', 'USA': 'United States', 'IRL': 'Ireland', 'PRT': 'Portugal',
-        'CZE': 'Czech Republic', 'HUN': 'Hungary', 'SWE': 'Sweden', 'NOR': 'Norway', 'EST': 'Estonia',
-        'LTU': 'Lithuania', 'LVA': 'Latvia', 'ROU': 'Romania', 'BGR': 'Bulgaria', 'HRV': 'Croatia',
-        'SVN': 'Slovenia', 'SVK': 'Slovakia', 'ISR': 'Israel', 'TUR': 'Turkey', 'GRC': 'Greece',
-        'TWN': 'Taiwan', 'HKG': 'Hong Kong', 'PHL': 'Philippines', 'VNM': 'Vietnam', 'ZAF': 'South Africa',
-    };
-    return countryNameMap[countryCode.toUpperCase()] || countryCode;
-};
-
-// Color palette for driver lines in the chart
-const DRIVER_COLORS = [
-    '#E10600', // F1 Red
-    '#1E41FF', // Blue
-    '#00D2BE', // Cyan
-    '#FF8700', // Orange
-    '#FFF500', // Yellow
-    '#006F62', // Dark Green
-    '#900000', // Dark Red
-    '#2B4562', // Dark Blue
-    '#DC143C', // Crimson
-    '#50C878', // Emerald
-    '#FF1493', // Deep Pink
-    '#00CED1', // Dark Turquoise
-    '#FFD700', // Gold
-    '#8A2BE2', // Blue Violet
-    '#FF6347', // Tomato
-    '#20B2AA', // Light Sea Green
-    '#FF69B4', // Hot Pink
-    '#32CD32', // Lime Green
-    '#FF4500', // Orange Red
-    '#9370DB', // Medium Purple
-];
-
-const getDriverColor = (_driverNumber: number, index: number): string => {
-    // Use modulo to cycle through colors if we have more drivers than colors
-    return DRIVER_COLORS[index % DRIVER_COLORS.length];
-};
+import LapComparisonChart from './LapComparisonChart';
+import { Race, EnrichedF1SessionResult } from '../types';
+import { formatDuration } from '../utils/formatting';
+import { getCountryFlagEmoji, getCountryName } from '../utils/countryMapping';
+import { mergeLapData } from '../utils/chartDataProcessing';
 
 const Dashboard = () => {
     const [years, setYears] = useState<number[]>([]);
@@ -147,7 +50,9 @@ const Dashboard = () => {
     const [loading, setLoading] = useState(false);
     const [selectedDrivers, setSelectedDrivers] = useState<Set<number>>(new Set());
     const [lapData, setLapData] = useState<LapData[]>([]);
-    const [loadingLapData, setLoadingLapData] = useState(false);
+    const [loadingLapData, setLoadingLapData] = useState<Set<number>>(new Set());
+    // Cache to track which drivers' lap data we've already fetched
+    const fetchedDriversRef = useRef<Set<number>>(new Set());
     const [columnVisibility, setColumnVisibility] = useState({
         laps: true,
         gapToLeader: true,
@@ -212,9 +117,10 @@ const Dashboard = () => {
                 try {
                     const data = await getSessionResults(selectedSessionKey);
                     setSessionResults(data);
-                    // Reset selected drivers when session changes
+                    // Reset selected drivers and lap data cache when session changes
                     setSelectedDrivers(new Set());
                     setLapData([]);
+                    fetchedDriversRef.current = new Set();
                 } finally {
                     setLoading(false);
                 }
@@ -224,28 +130,75 @@ const Dashboard = () => {
             setSessionResults([]);
             setSelectedDrivers(new Set());
             setLapData([]);
+            fetchedDriversRef.current = new Set();
         }
     }, [selectedSessionKey]);
 
-    // Fetch lap data when drivers are selected
+    // Fetch lap data incrementally when drivers are selected/deselected
     useEffect(() => {
         if (selectedSessionKey && selectedDrivers.size > 0) {
-            const fetchLapData = async () => {
-                setLoadingLapData(true);
+            const fetchMissingLapData = async () => {
+                // Find drivers that haven't been fetched yet
+                const driversToFetch = Array.from(selectedDrivers).filter(
+                    driverNum => !fetchedDriversRef.current.has(driverNum)
+                );
+
+                if (driversToFetch.length === 0) {
+                    // All selected drivers already have data, just filter existing data
+                    setLapData(prevData => 
+                        prevData.filter(lap => selectedDrivers.has(lap.driver_number))
+                    );
+                    return;
+                }
+
+                // Set loading state for new drivers
+                setLoadingLapData(prev => {
+                    const newSet = new Set(prev);
+                    driversToFetch.forEach(driverNum => newSet.add(driverNum));
+                    return newSet;
+                });
+
                 try {
-                    const driverNumbers = Array.from(selectedDrivers);
-                    const data = await getSessionLapData(selectedSessionKey, driverNumbers);
-                    setLapData(data);
+                    const newData = await getSessionLapData(selectedSessionKey, driversToFetch);
+                    
+                    // Mark these drivers as fetched
+                    driversToFetch.forEach(driverNum => {
+                        fetchedDriversRef.current.add(driverNum);
+                    });
+
+                    // Merge new data with existing data
+                    setLapData(prevData => {
+                        const merged = mergeLapData(prevData, newData);
+                        // Filter to only include selected drivers
+                        return merged.filter(lap => selectedDrivers.has(lap.driver_number));
+                    });
                 } catch (error) {
                     console.error('Error fetching lap data:', error);
-                    setLapData([]);
                 } finally {
-                    setLoadingLapData(false);
+                    setLoadingLapData(prev => {
+                        const newSet = new Set(prev);
+                        driversToFetch.forEach(driverNum => newSet.delete(driverNum));
+                        return newSet;
+                    });
                 }
             };
-            fetchLapData();
-        } else {
+
+            fetchMissingLapData();
+        } else if (selectedDrivers.size === 0) {
+            // No drivers selected, clear lap data
             setLapData([]);
+        } else {
+            // Session changed or drivers deselected, filter existing data
+            setLapData(prevData => 
+                prevData.filter(lap => selectedDrivers.has(lap.driver_number))
+            );
+            // Remove deselected drivers from fetched cache
+            const removedDrivers = Array.from(fetchedDriversRef.current).filter(
+                driverNum => !selectedDrivers.has(driverNum)
+            );
+            removedDrivers.forEach(driverNum => {
+                fetchedDriversRef.current.delete(driverNum);
+            });
         }
     }, [selectedSessionKey, selectedDrivers]);
 
@@ -723,7 +676,7 @@ const Dashboard = () => {
                         </Box>
 
                         {/* Chart */}
-                        {loadingLapData ? (
+                        {loadingLapData.size > 0 ? (
                             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
                                 <CircularProgress size={48} />
                             </Box>
@@ -769,150 +722,6 @@ const Dashboard = () => {
                     </CardContent>
                 </Card>
             )}
-        </Box>
-    );
-};
-
-// Lap Comparison Chart Component
-interface LapComparisonChartProps {
-    lapData: LapData[];
-    selectedDrivers: number[];
-    sessionResults: EnrichedF1SessionResult[];
-}
-
-const LapComparisonChart: React.FC<LapComparisonChartProps> = ({
-    lapData,
-    selectedDrivers,
-    sessionResults,
-}) => {
-    // Process data for chart
-    const chartData = useMemo(() => {
-        // Group lap data by driver
-        const driverLaps: { [driverNumber: number]: { [lapNumber: number]: number | null } } = {};
-        
-        selectedDrivers.forEach(driverNum => {
-            driverLaps[driverNum] = {};
-        });
-
-        lapData.forEach(lap => {
-            if (selectedDrivers.includes(lap.driver_number)) {
-                driverLaps[lap.driver_number][lap.lap_number] = lap.lap_duration;
-            }
-        });
-
-        // Find max lap number across all selected drivers
-        const maxLapNumber = Math.max(
-            ...selectedDrivers.map(driverNum => {
-                const laps = driverLaps[driverNum];
-                return laps ? Math.max(...Object.keys(laps).map(Number), 0) : 0;
-            }),
-            0
-        );
-
-        // Build chart data structure
-        const data: { [key: string]: number | null | string }[] = [];
-        
-        for (let lapNum = 1; lapNum <= maxLapNumber; lapNum++) {
-            const dataPoint: { [key: string]: number | null | string } = {
-                lap: `Lap ${lapNum}`,
-                lapNumber: lapNum,
-            };
-
-            selectedDrivers.forEach((driverNum) => {
-                const driverName = sessionResults.find(r => r.driver_number === driverNum)?.full_name || `Driver ${driverNum}`;
-                const lapDuration = driverLaps[driverNum]?.[lapNum] ?? null;
-                dataPoint[`driver_${driverNum}`] = lapDuration;
-                dataPoint[`driver_${driverNum}_name`] = driverName;
-            });
-
-            data.push(dataPoint);
-        }
-
-        return data;
-    }, [lapData, selectedDrivers, sessionResults]);
-
-    // Get driver info for legend
-    const driverInfo = useMemo(() => {
-        return selectedDrivers.map((driverNum, index) => {
-            const result = sessionResults.find(r => r.driver_number === driverNum);
-            return {
-                driverNumber: driverNum,
-                name: result?.full_name || `Driver ${driverNum}`,
-                color: getDriverColor(driverNum, index),
-            };
-        });
-    }, [selectedDrivers, sessionResults]);
-
-    // Format Y-axis (lap duration in seconds)
-    const formatDuration = (value: number) => {
-        if (value === null || value === undefined) return '';
-        const minutes = Math.floor(value / 60);
-        const seconds = (value % 60).toFixed(3);
-        return `${minutes}:${seconds.padStart(6, '0')}`;
-    };
-
-    return (
-        <Box sx={{ width: '100%', height: 500 }}>
-            <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                    data={chartData}
-                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                >
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.1)" />
-                    <XAxis
-                        dataKey="lap"
-                        stroke="rgba(255, 255, 255, 0.7)"
-                        style={{ fontSize: '12px' }}
-                    />
-                    <YAxis
-                        stroke="rgba(255, 255, 255, 0.7)"
-                        style={{ fontSize: '12px' }}
-                        label={{
-                            value: 'Lap Duration (min:sec)',
-                            angle: -90,
-                            position: 'insideLeft',
-                            style: { fill: 'rgba(255, 255, 255, 0.7)', fontSize: '12px' },
-                        }}
-                        tickFormatter={(value: number) => {
-                            return formatDuration(value);
-                        }}
-                    />
-                    <Tooltip
-                        contentStyle={{
-                            backgroundColor: '#1A1A1A',
-                            border: '1px solid rgba(255, 255, 255, 0.2)',
-                            borderRadius: '8px',
-                            color: '#FFFFFF',
-                        }}
-                        formatter={(value: any) => {
-                            if (value === null || value === undefined || typeof value !== 'number') return ['N/A', 'Lap Duration'];
-                            return [formatDuration(value), 'Lap Duration'];
-                        }}
-                        labelFormatter={(label: string) => label}
-                    />
-                    <Legend
-                        wrapperStyle={{ paddingTop: '20px' }}
-                        formatter={(value: string) => {
-                            const driverNum = parseInt(value.replace('driver_', ''));
-                            const info = driverInfo.find(d => d.driverNumber === driverNum);
-                            return info ? `#${info.driverNumber} ${info.name}` : value;
-                        }}
-                    />
-                    {driverInfo.map((driver) => (
-                        <Line
-                            key={driver.driverNumber}
-                            type="monotone"
-                            dataKey={`driver_${driver.driverNumber}`}
-                            stroke={driver.color}
-                            strokeWidth={2}
-                            dot={{ fill: driver.color, r: 3 }}
-                            activeDot={{ r: 6 }}
-                            name={`driver_${driver.driverNumber}`}
-                            connectNulls={false}
-                        />
-                    ))}
-                </LineChart>
-            </ResponsiveContainer>
         </Box>
     );
 };
