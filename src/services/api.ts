@@ -11,3 +11,8 @@ export const getRacesForYear = async (year: number) => {
     const response = await axios.get(`${API_BASE_URL}/races/${year}`);
     return response.data.all_races;
 };
+
+export const getSessionResults = async (session_key: number) => {
+    const response = await axios.get(`${API_BASE_URL}/session-results/${session_key}`);
+    return response.data.results;
+};

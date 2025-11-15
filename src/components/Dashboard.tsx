@@ -1,10 +1,27 @@
 import { useState, useEffect } from 'react';
-import { getYears, getRacesForYear } from '../services/api';
+import { getYears, getRacesForYear, getSessionResults } from '../services/api';
 
 interface Race {
     session_key: number;
     location: string;
     session_name: string;
+}
+
+interface EnrichedF1SessionResult {
+    dnf: boolean;
+    dns: boolean;
+    dsq: boolean;
+    driver_number: number;
+    number_of_laps: number;
+    meeting_key: number | string;
+    session_key: number;
+    duration: number | null;
+    gap_to_leader: number | string | null;
+    position: number | null;
+    full_name: string;
+    name_acronym: string;
+    first_name: string;
+    last_name: string;
 }
 
 const Dashboard = () => {
@@ -15,6 +32,7 @@ const Dashboard = () => {
     const [selectedLocation, setSelectedLocation] = useState<string | null>(null);
     const [sessions, setSessions] = useState<Race[]>([]);
     const [selectedSessionKey, setSelectedSessionKey] = useState<number | null>(null);
+    const [sessionResults, setSessionResults] = useState<EnrichedF1SessionResult[]>([]);
 
     useEffect(() => {
         const fetchYears = async () => {
@@ -34,6 +52,7 @@ const Dashboard = () => {
                 setSelectedLocation(null);
                 setSessions([]);
                 setSelectedSessionKey(null);
+                setSessionResults([]);
             };
             fetchRaces();
         }
@@ -44,8 +63,19 @@ const Dashboard = () => {
             const availableSessions = races.filter((race) => race.location === selectedLocation);
             setSessions(availableSessions);
             setSelectedSessionKey(null);
+            setSessionResults([]);
         }
     }, [selectedLocation, races]);
+
+    useEffect(() => {
+        if (selectedSessionKey) {
+            const fetchSessionResults = async () => {
+                const data = await getSessionResults(selectedSessionKey);
+                setSessionResults(data);
+            };
+            fetchSessionResults();
+        }
+    }, [selectedSessionKey]);
 
     const handleSessionChange = (sessionName: string) => {
         const session = sessions.find(s => s.session_name === sessionName);
@@ -88,9 +118,33 @@ const Dashboard = () => {
                     </select>
                 </div>
             )}
-            {selectedSessionKey && (
+            {sessionResults.length > 0 && (
                 <div>
-                    <p>Selected Session Key: {selectedSessionKey}</p>
+                    <h2>Session Results</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Position</th>
+                                <th>Driver</th>
+                                <th>Driver Number</th>
+                                <th>Laps</th>
+                                <th>Duration</th>
+                                <th>Gap to Leader</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {sessionResults.map((result) => (
+                                <tr key={result.driver_number}>
+                                    <td>{result.position}</td>
+                                    <td>{result.full_name}</td>
+                                    <td>{result.driver_number}</td>
+                                    <td>{result.number_of_laps}</td>
+                                    <td>{result.duration}</td>
+                                    <td>{result.gap_to_leader}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
             )}
         </div>
