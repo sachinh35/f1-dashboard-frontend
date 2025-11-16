@@ -9,7 +9,7 @@ import { EnrichedF1SessionResult } from '../types';
 import { processLapDataForChart } from '../utils/chartDataProcessing';
 import { formatLapDuration } from '../utils/formatting';
 import { getDriverColor } from '../constants/chartColors';
-import { getCompoundInitial, getCompoundBadgeStyle } from '../constants/compoundColors';
+import { getCompoundIconUrl } from '../constants/compoundColors';
 
 interface LapComparisonChartProps {
     lapData: LapData[];
@@ -91,36 +91,27 @@ const CustomTooltip = ({ active, payload, label, driverInfo }: any) => {
                                         }}
                                     />
                                 )}
-                                {compound && (
-                                    <Box
-                                        sx={{
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            gap: 0.75,
-                                        }}
-                                    >
+                                {compound && (() => {
+                                    const iconUrl = getCompoundIconUrl(compound);
+                                    if (!iconUrl) return null;
+                                    return (
                                         <Box
-                                            sx={() => {
-                                                const { bg, fg, border } = getCompoundBadgeStyle(compound);
-                                                return {
-                                                    width: 18,
-                                                    height: 18,
-                                                    lineHeight: '18px',
-                                                    borderRadius: '50%',
-                                                    textAlign: 'center',
-                                                    fontSize: '0.70rem',
-                                                    fontWeight: 700,
-                                                    backgroundColor: bg,
-                                                    color: fg,
-                                                    border: `2px solid ${border}`,
-                                                    userSelect: 'none',
-                                                };
+                                            component="img"
+                                            src={iconUrl}
+                                            alt={`${String(compound).toUpperCase()} tire`}
+                                            sx={{
+                                                width: 22,
+                                                height: 22,
+                                                maxWidth: 24,
+                                                maxHeight: 24,
+                                                objectFit: 'contain',
+                                                display: 'inline-block',
+                                                ml: 0.5,
+                                                filter: 'drop-shadow(0 0 2px rgba(0,0,0,0.6))',
                                             }}
-                                        >
-                                            {getCompoundInitial(compound)}
-                                        </Box>
-                                    </Box>
-                                )}
+                                        />
+                                    );
+                                })()}
                             </Box>
                         </Box>
                     );

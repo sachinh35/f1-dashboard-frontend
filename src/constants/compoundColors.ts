@@ -1,7 +1,22 @@
-export type Compound = 'SOFT' | 'MEDIUM' | 'HARD' | 'INTERMEDIATE' | 'WET' | string | null | undefined;
+export type Compound = 'SOFT' | 'MEDIUM' | 'HARD' | 'INTERMEDIATE' | 'INTERS' | 'INTER' | 'WET' | 'WETS' | string | null | undefined;
+
+const normalize = (compound: Compound): string => {
+  const c = (compound || '').toUpperCase();
+  if (c === 'INTERS' || c === 'INTER') return 'INTERMEDIATE';
+  if (c === 'WETS') return 'WET';
+  return c;
+};
+
+// Icon imports (Vite will bundle these)
+// Using default export URLs for images
+import redIconUrl from '../tire-compound-icons/red.svg';
+import yellowIconUrl from '../tire-compound-icons/yellow.svg';
+import whiteIconUrl from '../tire-compound-icons/white.svg';
+import greenIconUrl from '../tire-compound-icons/green.png';
+import blueIconUrl from '../tire-compound-icons/blue.svg';
 
 export const getCompoundColor = (compound: Compound): string => {
-  switch ((compound || '').toUpperCase()) {
+  switch (normalize(compound)) {
     case 'SOFT':
       return '#EA3C53'; // red
     case 'MEDIUM':
@@ -18,7 +33,7 @@ export const getCompoundColor = (compound: Compound): string => {
 };
 
 export const getCompoundInitial = (compound: Compound): string => {
-  switch ((compound || '').toUpperCase()) {
+  switch (normalize(compound)) {
     case 'SOFT':
       return 'S';
     case 'MEDIUM':
@@ -35,7 +50,7 @@ export const getCompoundInitial = (compound: Compound): string => {
 };
 
 export const getCompoundBadgeStyle = (compound: Compound): { bg: string; fg: string; border: string } => {
-  const c = (compound || '').toUpperCase();
+  const c = normalize(compound);
   if (c === 'SOFT') {
     return { bg: '#EA3C53', fg: '#FFFFFF', border: '#EA3C53' };
   }
@@ -52,5 +67,22 @@ export const getCompoundBadgeStyle = (compound: Compound): { bg: string; fg: str
     return { bg: '#0077FF', fg: '#FFFFFF', border: '#0077FF' };
   }
   return { bg: 'transparent', fg: 'rgba(255,255,255,0.7)', border: 'rgba(255,255,255,0.4)' };
+};
+
+export const getCompoundIconUrl = (compound: Compound): string | null => {
+  switch (normalize(compound)) {
+    case 'SOFT':
+      return redIconUrl;
+    case 'MEDIUM':
+      return yellowIconUrl;
+    case 'HARD':
+      return whiteIconUrl;
+    case 'INTERMEDIATE':
+      return greenIconUrl;
+    case 'WET':
+      return blueIconUrl;
+    default:
+      return null;
+  }
 };
 
