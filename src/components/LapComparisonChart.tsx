@@ -158,28 +158,33 @@ const LapComparisonChart: React.FC<LapComparisonChartProps> = ({
         });
     }, [selectedDrivers, sessionResults]);
 
-    // Calculate Y-axis domain from data
-    const yAxisDataRange = useMemo(() => {
+    // Calculate auto Y-axis domain from currently visible data (Brush-controlled)
+    const autoYAxisRange = useMemo(() => {
         if (!chartData || chartData.length === 0) return [0, 100];
-        
-        const allValues: number[] = [];
-        chartData.forEach((point) => {
+
+        const startIndex = xAxisRange ? Math.max(0, xAxisRange[0]) : 0;
+        const endIndex = xAxisRange ? Math.min(chartData.length - 1, xAxisRange[1]) : chartData.length - 1;
+
+        const visibleValues: number[] = [];
+        for (let i = startIndex; i <= endIndex; i++) {
+            const point = chartData[i];
             selectedDrivers.forEach((driverNum) => {
                 const value = point[`driver_${driverNum}`];
                 if (value !== null && value !== undefined && typeof value === 'number') {
-                    allValues.push(value);
+                    visibleValues.push(value as number);
                 }
             });
-        });
-        
-        if (allValues.length === 0) return [0, 100];
-        
-        const min = Math.min(...allValues);
-        const max = Math.max(...allValues);
-        const padding = (max - min) * 0.1; // 10% padding
-        
-        return [Math.max(0, min - padding), max + padding];
-    }, [chartData, selectedDrivers]);
+        }
+
+        if (visibleValues.length === 0) return [0, 100];
+
+        const min = Math.min(...visibleValues);
+        const max = Math.max(...visibleValues);
+        const range = max - min || 1; // avoid zero range
+        const padding = Math.max(range * 0.1, 0.05); // 10% padding, minimum small padding
+
+        return [Math.max(0, min - padding), max + padding] as [number, number];
+    }, [chartData, selectedDrivers, xAxisRange]);
 
     // Reset zoom
     const handleResetZoom = useCallback(() => {
@@ -206,13 +211,13 @@ const LapComparisonChart: React.FC<LapComparisonChartProps> = ({
             const newRange = range * 0.7; // Zoom in by 30%
             setYAxisDomain([center - newRange / 2, center + newRange / 2]);
         } else {
-            const [min, max] = yAxisDataRange;
+            const [min, max] = autoYAxisRange;
             const range = max - min;
             const center = (min + max) / 2;
             const newRange = range * 0.7;
             setYAxisDomain([center - newRange / 2, center + newRange / 2]);
         }
-    }, [yAxisDomain, yAxisDataRange]);
+    }, [yAxisDomain, autoYAxisRange]);
 
     const handleZoomOut = useCallback(() => {
         if (yAxisDomain) {
@@ -222,13 +227,13 @@ const LapComparisonChart: React.FC<LapComparisonChartProps> = ({
             const newRange = range * 1.4; // Zoom out by 40%
             setYAxisDomain([center - newRange / 2, center + newRange / 2]);
         } else {
-            const [min, max] = yAxisDataRange;
+            const [min, max] = autoYAxisRange;
             const range = max - min;
             const center = (min + max) / 2;
             const newRange = range * 1.4;
             setYAxisDomain([center - newRange / 2, center + newRange / 2]);
         }
-    }, [yAxisDomain, yAxisDataRange]);
+    }, [yAxisDomain, autoYAxisRange]);
 
     // Use full data; Brush controls viewport
     const displayedChartData = chartData;
@@ -297,7 +302,7 @@ const LapComparisonChart: React.FC<LapComparisonChartProps> = ({
                             stroke="rgba(255, 255, 255, 0.7)"
                             style={{ fontSize: '12px' }}
                             width={70}
-                            domain={yAxisDomain || yAxisDataRange}
+                            domain={yAxisDomain || autoYAxisRange}
                             label={{
                                 value: 'Lap Duration (min:sec)',
                                 angle: -90,
