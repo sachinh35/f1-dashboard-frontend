@@ -1,7 +1,7 @@
 /**
  * Utility functions for processing chart data
  */
-import { LapData } from '../services/api';
+import { LapData, Stint } from '../services/api';
 import { EnrichedF1SessionResult } from '../types';
 
 export interface DriverLapInfo {
@@ -20,7 +20,8 @@ export interface ProcessedChartData {
 export const processLapDataForChart = (
     lapData: LapData[],
     selectedDrivers: number[],
-    sessionResults: EnrichedF1SessionResult[]
+    sessionResults: EnrichedF1SessionResult[],
+    stints?: Stint[]
 ): ProcessedChartData => {
     // Group lap data by driver (including pit out lap info)
     const driverLaps: { 
@@ -51,6 +52,19 @@ export const processLapDataForChart = (
         0
     );
 
+    // Build compound lookup per driver per lap from stints (if provided)
+    const compoundByDriverLap: { [driverNumber: number]: { [lap: number]: string | null } } = {};
+    if (stints && stints.length > 0) {
+        selectedDrivers.forEach(d => (compoundByDriverLap[d] = {}));
+        stints.forEach(s => {
+            if (selectedDrivers.includes(s.driver_number)) {
+                for (let lapNum = s.lap_start; lapNum <= s.lap_end; lapNum++) {
+                    compoundByDriverLap[s.driver_number][lapNum] = s.compound || null;
+                }
+            }
+        });
+    }
+
     // Build chart data structure
     const data: { [key: string]: number | null | string | boolean }[] = [];
     
@@ -65,10 +79,12 @@ export const processLapDataForChart = (
             const lapInfo = driverLaps[driverNum]?.[lapNum];
             const lapDuration = lapInfo?.lap_duration ?? null;
             const isPitOutLap = lapInfo?.is_pit_out_lap ?? false;
+            const compound = compoundByDriverLap[driverNum]?.[lapNum] ?? null;
             
             dataPoint[`driver_${driverNum}`] = lapDuration;
             dataPoint[`driver_${driverNum}_name`] = driverName;
             dataPoint[`driver_${driverNum}_pit_out`] = isPitOutLap;
+            dataPoint[`driver_${driverNum}_compound`] = compound;
         });
 
         data.push(dataPoint);

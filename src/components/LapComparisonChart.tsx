@@ -4,16 +4,18 @@ import { Box, Typography, Chip, IconButton, Stack, Button } from '@mui/material'
 import ZoomInIcon from '@mui/icons-material/ZoomIn';
 import ZoomOutIcon from '@mui/icons-material/ZoomOut';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
-import { LapData } from '../services/api';
+import { LapData, Stint } from '../services/api';
 import { EnrichedF1SessionResult } from '../types';
 import { processLapDataForChart } from '../utils/chartDataProcessing';
 import { formatLapDuration } from '../utils/formatting';
 import { getDriverColor } from '../constants/chartColors';
+import { getCompoundInitial, getCompoundBadgeStyle } from '../constants/compoundColors';
 
 interface LapComparisonChartProps {
     lapData: LapData[];
     selectedDrivers: number[];
     sessionResults: EnrichedF1SessionResult[];
+    stints: Stint[];
 }
 
 interface DriverInfo {
@@ -22,7 +24,7 @@ interface DriverInfo {
     color: string;
 }
 
-// Custom tooltip component to show pit out lap info
+// Custom tooltip component to show pit out lap info and compound
 const CustomTooltip = ({ active, payload, label, driverInfo }: any) => {
     if (active && payload && payload.length) {
         return (
@@ -44,6 +46,7 @@ const CustomTooltip = ({ active, payload, label, driverInfo }: any) => {
                     const driverName = driverInfo_entry?.name || `Driver ${driverNum}`;
                     const value = entry.value;
                     const isPitOutLap = entry.payload[`driver_${driverNum}_pit_out`] || false;
+                    const compound = entry.payload[`driver_${driverNum}_compound`] || null;
                     
                     if (value === null || value === undefined) {
                         return (
@@ -88,6 +91,36 @@ const CustomTooltip = ({ active, payload, label, driverInfo }: any) => {
                                         }}
                                     />
                                 )}
+                                {compound && (
+                                    <Box
+                                        sx={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: 0.75,
+                                        }}
+                                    >
+                                        <Box
+                                            sx={() => {
+                                                const { bg, fg, border } = getCompoundBadgeStyle(compound);
+                                                return {
+                                                    width: 18,
+                                                    height: 18,
+                                                    lineHeight: '18px',
+                                                    borderRadius: '50%',
+                                                    textAlign: 'center',
+                                                    fontSize: '0.70rem',
+                                                    fontWeight: 700,
+                                                    backgroundColor: bg,
+                                                    color: fg,
+                                                    border: `2px solid ${border}`,
+                                                    userSelect: 'none',
+                                                };
+                                            }}
+                                        >
+                                            {getCompoundInitial(compound)}
+                                        </Box>
+                                    </Box>
+                                )}
                             </Box>
                         </Box>
                     );
@@ -98,7 +131,7 @@ const CustomTooltip = ({ active, payload, label, driverInfo }: any) => {
     return null;
 };
 
-// Custom dot renderer for pit out laps
+// Custom dot renderer. Reserve ring only for pit-out. No compound ring.
 const renderPitOutDot = (driverNumber: number, driverColor: string) => (props: any) => {
     const { cx, cy, payload } = props;
     const isPitOutLap = payload?.[`driver_${driverNumber}_pit_out`] || false;
@@ -136,6 +169,7 @@ const LapComparisonChart: React.FC<LapComparisonChartProps> = ({
     lapData,
     selectedDrivers,
     sessionResults,
+    stints,
 }) => {
     // Zoom state
     const [xAxisRange, setXAxisRange] = useState<[number, number] | undefined>(undefined);
@@ -147,8 +181,8 @@ const LapComparisonChart: React.FC<LapComparisonChartProps> = ({
 
     // Process data for chart
     const { data: chartData } = useMemo(() => {
-        return processLapDataForChart(lapData, selectedDrivers, sessionResults);
-    }, [lapData, selectedDrivers, sessionResults]);
+        return processLapDataForChart(lapData, selectedDrivers, sessionResults, stints);
+    }, [lapData, selectedDrivers, sessionResults, stints]);
 
     // Get driver info for legend
     const driverInfo = useMemo(() => {

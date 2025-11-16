@@ -48,3 +48,19 @@ export const getSessionLapData = async (session_key: number, driver_numbers: num
     );
     return response.data.lap_data;
 };
+
+export interface Stint {
+    meeting_key: number;
+    session_key: number;
+    driver_number: number;
+    stint_number: number;
+    lap_start: number;
+    lap_end: number;
+    compound: string | null;
+    tyre_age_at_start: number | null;
+}
+
+export const getSessionStints = async (session_key: number): Promise<Stint[]> => {
+    const response = await axios.get(`${API_BASE_URL}/session-stints/${session_key}`);
+    return response.data.stints as Stint[];
+};

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { getYears, getRacesForYear, getSessionResults, getSessionLapData, LapData } from '../services/api';
+import { getYears, getRacesForYear, getSessionResults, getSessionLapData, getSessionStints, LapData, Stint } from '../services/api';
 import {
     Box,
     Grid,
@@ -51,6 +51,7 @@ const Dashboard = () => {
     const [selectedDrivers, setSelectedDrivers] = useState<Set<number>>(new Set());
     const [lapData, setLapData] = useState<LapData[]>([]);
     const [loadingLapData, setLoadingLapData] = useState<Set<number>>(new Set());
+    const [stints, setStints] = useState<Stint[]>([]);
     // Cache to track which drivers' lap data we've already fetched
     const fetchedDriversRef = useRef<Set<number>>(new Set());
     const [columnVisibility, setColumnVisibility] = useState({
@@ -121,6 +122,14 @@ const Dashboard = () => {
                     setSelectedDrivers(new Set());
                     setLapData([]);
                     fetchedDriversRef.current = new Set();
+                    // Fetch stints for this session
+                    try {
+                        const stintsData = await getSessionStints(selectedSessionKey);
+                        setStints(stintsData);
+                    } catch (err) {
+                        console.error('Error fetching stints:', err);
+                        setStints([]);
+                    }
                 } finally {
                     setLoading(false);
                 }
@@ -131,6 +140,7 @@ const Dashboard = () => {
             setSelectedDrivers(new Set());
             setLapData([]);
             fetchedDriversRef.current = new Set();
+            setStints([]);
         }
     }, [selectedSessionKey]);
 
@@ -725,6 +735,7 @@ const Dashboard = () => {
                                 lapData={lapData}
                                 selectedDrivers={Array.from(selectedDrivers)}
                                 sessionResults={sessionResults}
+                                stints={stints}
                             />
                         )}
                     </CardContent>
