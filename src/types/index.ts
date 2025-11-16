@@ -6,6 +6,7 @@ export interface Race {
     session_key: number;
     location: string;
     session_name: string;
+    country_code: string;
 }
 
 export interface EnrichedF1SessionResult {

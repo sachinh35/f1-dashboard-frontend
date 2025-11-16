@@ -15,6 +15,7 @@ const FLAG_EMOJI_MAP: { [key: string]: string } = {
     'LTU': '🇱🇹', 'LVA': '🇱🇻', 'ROU': '🇷🇴', 'BGR': '🇧🇬', 'HRV': '🇭🇷',
     'SVN': '🇸🇮', 'SVK': '🇸🇰', 'ISR': '🇮🇱', 'TUR': '🇹🇷', 'GRC': '🇬🇷',
     'TWN': '🇹🇼', 'HKG': '🇭🇰', 'PHL': '🇵🇭', 'VNM': '🇻🇳', 'ZAF': '🇿🇦',
+    'BRN': '🇧🇭', 'KSA': '🇸🇦', 'AZE': '🇦🇿',
 };
 
 const COUNTRY_NAME_MAP: { [key: string]: string } = {
@@ -29,6 +30,7 @@ const COUNTRY_NAME_MAP: { [key: string]: string } = {
     'LTU': 'Lithuania', 'LVA': 'Latvia', 'ROU': 'Romania', 'BGR': 'Bulgaria', 'HRV': 'Croatia',
     'SVN': 'Slovenia', 'SVK': 'Slovakia', 'ISR': 'Israel', 'TUR': 'Turkey', 'GRC': 'Greece',
     'TWN': 'Taiwan', 'HKG': 'Hong Kong', 'PHL': 'Philippines', 'VNM': 'Vietnam', 'ZAF': 'South Africa',
+    'BRN': 'Bahrain', 'KSA': 'Saudi Arabia', 'AZE': 'Azerbaijan',
 };
 
 export const getCountryFlagEmoji = (countryCode: string | null | undefined): string | null => {

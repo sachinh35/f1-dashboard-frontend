@@ -43,6 +43,7 @@ const Dashboard = () => {
     const [selectedYear, setSelectedYear] = useState<number | string>('');
     const [races, setRaces] = useState<Race[]>([]);
     const [locations, setLocations] = useState<string[]>([]);
+    const [locationCountryMap, setLocationCountryMap] = useState<Map<string, string>>(new Map());
     const [selectedLocation, setSelectedLocation] = useState<string>('');
     const [sessions, setSessions] = useState<Race[]>([]);
     const [selectedSessionKey, setSelectedSessionKey] = useState<number | null>(null);
@@ -92,6 +93,14 @@ const Dashboard = () => {
                 const data = await getRacesForYear(selectedYear as number);
                 setRaces(data);
                 const uniqueLocations: string[] = Array.from(new Set(data.map((race: Race) => race.location)));
+                // Create a map of location -> country_code (use first occurrence for each location)
+                const locationToCountry = new Map<string, string>();
+                data.forEach((race: Race) => {
+                    if (!locationToCountry.has(race.location) && race.country_code) {
+                        locationToCountry.set(race.location, race.country_code);
+                    }
+                });
+                setLocationCountryMap(locationToCountry);
                 setLocations(uniqueLocations);
                 setSelectedLocation('');
                 setSessions([]);
@@ -335,9 +344,22 @@ const Dashboard = () => {
                                             {selectedYear ? 'Select a location...' : 'Select a Season first'}
                                         </Typography>
                                     </MenuItem>
-                                    {locations.map((location) => (
-                                        <MenuItem key={location} value={location}>{location}</MenuItem>
-                                    ))}
+                                    {locations.map((location) => {
+                                        const countryCode = locationCountryMap.get(location);
+                                        const flagEmoji = countryCode ? getCountryFlagEmoji(countryCode) : null;
+                                        return (
+                                            <MenuItem key={location} value={location}>
+                                                <Stack direction="row" spacing={1} alignItems="center">
+                                                    {flagEmoji && (
+                                                        <Typography variant="body2" sx={{ fontSize: '1.2rem' }}>
+                                                            {flagEmoji}
+                                                        </Typography>
+                                                    )}
+                                                    <Typography variant="body2">{location}</Typography>
+                                                </Stack>
+                                            </MenuItem>
+                                        );
+                                    })}
                                 </Select>
                             </FormControl>
                         </CardContent>
