@@ -47,6 +47,8 @@ const CustomTooltip = ({ active, payload, label, driverInfo }: any) => {
                     const value = entry.value;
                     const isPitOutLap = entry.payload[`driver_${driverNum}_pit_out`] || false;
                     const compound = entry.payload[`driver_${driverNum}_compound`] || null;
+                    const tyreAge = entry.payload[`driver_${driverNum}_tyre_age`] as number | null | undefined;
+                    const isScrubSet = Boolean(entry.payload[`driver_${driverNum}_is_scrub_set`]);
                     
                     if (value === null || value === undefined) {
                         return (
@@ -77,6 +79,19 @@ const CustomTooltip = ({ active, payload, label, driverInfo }: any) => {
                                     }}
                                 >
                                     {driverName}: {formatLapDuration(value)}
+                                    {typeof tyreAge === 'number' && (
+                                        <Typography
+                                            component="span"
+                                            variant="body2"
+                                            sx={{
+                                                ml: 0.75,
+                                                fontSize: '0.75rem',
+                                                color: 'rgba(255,255,255,0.7)',
+                                            }}
+                                        >
+                                            ({tyreAge} lap{tyreAge === 1 ? '' : 's'} on tyre)
+                                        </Typography>
+                                    )}
                                 </Typography>
                                 {isPitOutLap && (
                                     <Chip 
@@ -112,6 +127,20 @@ const CustomTooltip = ({ active, payload, label, driverInfo }: any) => {
                                         />
                                     );
                                 })()}
+                                {isScrubSet && (
+                                    <Chip
+                                        label="Scrub set"
+                                        size="small"
+                                        sx={{
+                                            height: 18,
+                                            fontSize: '0.65rem',
+                                            backgroundColor: 'rgba(144, 202, 249, 0.16)',
+                                            color: 'rgba(187, 222, 251, 0.9)',
+                                            border: '1px solid rgba(144, 202, 249, 0.4)',
+                                            ml: 0.5,
+                                        }}
+                                    />
+                                )}
                             </Box>
                         </Box>
                     );
