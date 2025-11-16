@@ -1,5 +1,5 @@
 import React, { useMemo, memo, useState, useCallback } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Brush } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceArea } from 'recharts';
 import { Box, Typography, Chip, IconButton, Stack, Button } from '@mui/material';
 import ZoomInIcon from '@mui/icons-material/ZoomIn';
 import ZoomOutIcon from '@mui/icons-material/ZoomOut';
@@ -38,7 +38,7 @@ const CustomTooltip = ({ active, payload, label, driverInfo }: any) => {
                 <Typography variant="body2" sx={{ fontWeight: 600, mb: 1, color: '#FFFFFF' }}>
                     {label}
                 </Typography>
-                {payload.map((entry: any, index: number) => {
+                {payload.map((entry: any) => {
                     const driverNum = parseInt(entry.dataKey.replace('driver_', '').replace('_pit_out', ''));
                     const driverInfo_entry = driverInfo.find((d: DriverInfo) => d.driverNumber === driverNum);
                     const driverName = driverInfo_entry?.name || `Driver ${driverNum}`;
@@ -140,6 +140,10 @@ const LapComparisonChart: React.FC<LapComparisonChartProps> = ({
     // Zoom state
     const [xAxisRange, setXAxisRange] = useState<[number, number] | undefined>(undefined);
     const [yAxisDomain, setYAxisDomain] = useState<[number, number] | undefined>(undefined);
+    // Drag-to-zoom selection state
+    const [selectionStartIndex, setSelectionStartIndex] = useState<number | null>(null);
+    const [selectionEndIndex, setSelectionEndIndex] = useState<number | null>(null);
+    const [isSelecting, setIsSelecting] = useState<boolean>(false);
 
     // Process data for chart
     const { data: chartData } = useMemo(() => {
@@ -190,16 +194,50 @@ const LapComparisonChart: React.FC<LapComparisonChartProps> = ({
     const handleResetZoom = useCallback(() => {
         setXAxisRange(undefined);
         setYAxisDomain(undefined);
+        setSelectionStartIndex(null);
+        setSelectionEndIndex(null);
+        setIsSelecting(false);
     }, []);
 
-    // Handle brush change for X-axis zoom
-    const handleBrushChange = useCallback((domain: { startIndex?: number; endIndex?: number } | null) => {
-        if (domain && domain.startIndex !== undefined && domain.endIndex !== undefined) {
-            setXAxisRange([domain.startIndex, domain.endIndex]);
-        } else {
-            setXAxisRange(undefined);
+    // Mouse drag-to-zoom handlers
+    const handleMouseDown = useCallback((e: any) => {
+        if (e && e.activeTooltipIndex != null) {
+            setIsSelecting(true);
+            setSelectionStartIndex(e.activeTooltipIndex);
+            setSelectionEndIndex(e.activeTooltipIndex);
         }
     }, []);
+
+    const handleMouseMove = useCallback((e: any) => {
+        if (!isSelecting) return;
+        if (e && e.activeTooltipIndex != null) {
+            setSelectionEndIndex(e.activeTooltipIndex);
+        }
+    }, [isSelecting]);
+
+    const finalizeSelection = useCallback(() => {
+        if (isSelecting && selectionStartIndex != null && selectionEndIndex != null) {
+            const start = Math.min(selectionStartIndex, selectionEndIndex);
+            const end = Math.max(selectionStartIndex, selectionEndIndex);
+            if (end > start) {
+                setXAxisRange([start, end]);
+            }
+        }
+        setIsSelecting(false);
+        setSelectionStartIndex(null);
+        setSelectionEndIndex(null);
+    }, [isSelecting, selectionStartIndex, selectionEndIndex]);
+
+    const handleMouseUp = useCallback(() => {
+        finalizeSelection();
+    }, [finalizeSelection]);
+
+    const handleMouseLeave = useCallback(() => {
+        // Cancel selection if user leaves chart area
+        if (isSelecting) {
+            finalizeSelection();
+        }
+    }, [isSelecting, finalizeSelection]);
 
 
     // Zoom in/out functions
@@ -235,8 +273,14 @@ const LapComparisonChart: React.FC<LapComparisonChartProps> = ({
         }
     }, [yAxisDomain, autoYAxisRange]);
 
-    // Use full data; Brush controls viewport
-    const displayedChartData = chartData;
+    // Slice data when a range is selected
+    const displayedChartData = useMemo(() => {
+        if (!chartData) return [];
+        if (!xAxisRange) return chartData;
+        const start = Math.max(0, xAxisRange[0]);
+        const end = Math.min(chartData.length - 1, xAxisRange[1]);
+        return chartData.slice(start, end + 1);
+    }, [chartData, xAxisRange]);
 
     return (
         <Box sx={{ width: '100%' }}>
@@ -290,7 +334,11 @@ const LapComparisonChart: React.FC<LapComparisonChartProps> = ({
                 <ResponsiveContainer width="100%" height="100%">
                     <LineChart
                         data={displayedChartData}
-                        margin={{ top: 5, right: 30, left: 80, bottom: 60 }}
+                        margin={{ top: 5, right: 30, left: 130, bottom: 60 }}
+                        onMouseDown={handleMouseDown}
+                        onMouseMove={handleMouseMove}
+                        onMouseUp={handleMouseUp}
+                        onMouseLeave={handleMouseLeave}
                     >
                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.1)" />
                         <XAxis
@@ -301,14 +349,20 @@ const LapComparisonChart: React.FC<LapComparisonChartProps> = ({
                         <YAxis
                             stroke="rgba(255, 255, 255, 0.7)"
                             style={{ fontSize: '12px' }}
-                            width={70}
+                            width={90}
                             domain={yAxisDomain || autoYAxisRange}
                             label={{
                                 value: 'Lap Duration (min:sec)',
                                 angle: -90,
                                 position: 'left',
-                                offset: -10,
-                                style: { fill: 'rgba(255, 255, 255, 0.7)', fontSize: '12px', textAnchor: 'middle' },
+                                offset: -100,
+                                style: { 
+                                    fill: 'rgba(255, 255, 255, 0.9)', 
+                                    fontSize: '12px', 
+                                    fontStyle: 'italic',
+                                    fontWeight: 700,
+                                    textAnchor: 'middle',
+                                },
                             }}
                             tickFormatter={(value: number) => {
                                 return formatLapDuration(value);
@@ -337,22 +391,31 @@ const LapComparisonChart: React.FC<LapComparisonChartProps> = ({
                                 connectNulls={false}
                             />
                         ))}
-                        <Brush
-                            dataKey="lap"
-                            height={30}
-                            stroke="rgba(255, 255, 255, 0.3)"
-                            fill="rgba(255, 255, 255, 0.1)"
-                            onChange={handleBrushChange}
-                            startIndex={xAxisRange ? xAxisRange[0] : 0}
-                            endIndex={xAxisRange ? xAxisRange[1] : chartData.length - 1}
-                        />
+                        {isSelecting && selectionStartIndex != null && selectionEndIndex != null && (() => {
+                            const start = Math.min(selectionStartIndex, selectionEndIndex);
+                            const end = Math.max(selectionStartIndex, selectionEndIndex);
+                            const x1 = (chartData[start]?.lap ?? '') as string | number;
+                            const x2 = (chartData[end]?.lap ?? '') as string | number;
+                            return (
+                            <ReferenceArea
+                                // Use labels from the full chartData for selection band
+                                x1={x1}
+                                x2={x2}
+                                y1={autoYAxisRange[0]}
+                                y2={autoYAxisRange[1]}
+                                stroke="rgba(225, 6, 0, 0.6)"
+                                strokeOpacity={0.3}
+                                fill="rgba(225, 6, 0, 0.15)"
+                            />
+                            );
+                        })()}
                     </LineChart>
                 </ResponsiveContainer>
             </Box>
             
             {/* Instructions */}
             <Typography variant="caption" sx={{ color: 'text.secondary', mt: 1, display: 'block' }}>
-                💡 Tip: Use the brush below the chart to zoom on lap numbers (X-axis), or use the zoom buttons to adjust the time window (Y-axis)
+                💡 Tip: Click and drag on the chart to select a lap window (X-axis). Use the buttons above to adjust the time window (Y-axis).
             </Typography>
         </Box>
     );
