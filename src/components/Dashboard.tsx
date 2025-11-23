@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { getYears, getRacesForYear, getSessionResults, getSessionLapData, getSessionStints, LapData, Stint } from '../services/api';
+import { getYears, getRacesForYear, getSessionResults, getSessionLapData, getSessionStints, getSessionRaceControlEvents, LapData, Stint, RaceControlEvent } from '../services/api';
 import {
     Box,
     Grid,
@@ -53,6 +53,7 @@ const Dashboard = () => {
     const [lapData, setLapData] = useState<LapData[]>([]);
     const [loadingLapData, setLoadingLapData] = useState<Set<number>>(new Set());
     const [stints, setStints] = useState<Stint[]>([]);
+    const [raceControlEvents, setRaceControlEvents] = useState<RaceControlEvent[]>([]);
     // Cache to track which drivers' lap data we've already fetched
     const fetchedDriversRef = useRef<Set<number>>(new Set());
     const [columnVisibility, setColumnVisibility] = useState({
@@ -139,6 +140,14 @@ const Dashboard = () => {
                         console.error('Error fetching stints:', err);
                         setStints([]);
                     }
+                    // Fetch race control events for this session
+                    try {
+                        const eventsData = await getSessionRaceControlEvents(selectedSessionKey);
+                        setRaceControlEvents(eventsData);
+                    } catch (err) {
+                        console.error('Error fetching race control events:', err);
+                        setRaceControlEvents([]);
+                    }
                 } finally {
                     setLoading(false);
                 }
@@ -150,6 +159,7 @@ const Dashboard = () => {
             setLapData([]);
             fetchedDriversRef.current = new Set();
             setStints([]);
+            setRaceControlEvents([]);
         }
     }, [selectedSessionKey]);
 
@@ -157,10 +167,19 @@ const Dashboard = () => {
     useEffect(() => {
         if (selectedSessionKey && selectedDrivers.size > 0) {
             const fetchMissingLapData = async () => {
-                // Find drivers that haven't been fetched yet
-                const driversToFetch = Array.from(selectedDrivers).filter(
-                    driverNum => !fetchedDriversRef.current.has(driverNum)
-                );
+                // Find drivers that need data fetched
+                // A driver needs fetching if:
+                // 1. Not in cache, OR
+                // 2. In cache but no data exists in state (was filtered out when deselected)
+                const driversToFetch = Array.from(selectedDrivers).filter(driverNum => {
+                    if (!fetchedDriversRef.current.has(driverNum)) {
+                        // Not in cache, definitely need to fetch
+                        return true;
+                    }
+                    // In cache, but check if data actually exists in state
+                    const hasDataInState = lapData.some(lap => lap.driver_number === driverNum);
+                    return !hasDataInState;
+                });
 
                 if (driversToFetch.length === 0) {
                     // All selected drivers already have data, just filter existing data
@@ -193,6 +212,10 @@ const Dashboard = () => {
                     });
                 } catch (error) {
                     console.error('Error fetching lap data:', error);
+                    // On error, remove from cache so it can be retried
+                    driversToFetch.forEach(driverNum => {
+                        fetchedDriversRef.current.delete(driverNum);
+                    });
                 } finally {
                     setLoadingLapData(prev => {
                         const newSet = new Set(prev);
@@ -204,10 +227,11 @@ const Dashboard = () => {
 
             fetchMissingLapData();
         } else if (selectedDrivers.size === 0) {
-            // No drivers selected, clear lap data
+            // No drivers selected, clear lap data and cache
             setLapData([]);
+            fetchedDriversRef.current.clear();
         } else {
-            // Session changed or drivers deselected, filter existing data
+            // Drivers deselected (but some remain), filter existing data
             setLapData(prevData => 
                 prevData.filter(lap => selectedDrivers.has(lap.driver_number))
             );
@@ -762,6 +786,7 @@ const Dashboard = () => {
                                 selectedDrivers={Array.from(selectedDrivers)}
                                 sessionResults={sessionResults}
                                 stints={stints}
+                                raceControlEvents={raceControlEvents}
                             />
                         )}
                     </CardContent>

@@ -64,3 +64,19 @@ export const getSessionStints = async (session_key: number): Promise<Stint[]> =>
     const response = await axios.get(`${API_BASE_URL}/session-stints/${session_key}`);
     return response.data.stints as Stint[];
 };
+
+export interface RaceControlEvent {
+    session_key: number;
+    date: string;
+    category: string;
+    message: string;
+    scope: string | null;
+    sector: number | null;
+    driver_number: number | null;
+    flag: string | null;
+}
+
+export const getSessionRaceControlEvents = async (session_key: number): Promise<RaceControlEvent[]> => {
+    const response = await axios.get(`${API_BASE_URL}/session-race-control-events/${session_key}`);
+    return response.data.events as RaceControlEvent[];
+};
