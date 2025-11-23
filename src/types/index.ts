@@ -14,7 +14,7 @@ export interface EnrichedF1SessionResult {
     dns: boolean;
     dsq: boolean;
     driver_number: number;
-    number_of_laps: number;
+    number_of_laps: number | null;
     meeting_key: number | string;
     session_key: number;
     duration: number | null;

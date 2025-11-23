@@ -592,7 +592,11 @@ const Dashboard = () => {
                                                     </Typography>
                                                 </TableCell>
                                                 {columnVisibility.laps && (
-                                                    <TableCell>{result.number_of_laps}</TableCell>
+                                                    <TableCell>
+                                                        {result.number_of_laps !== null ? result.number_of_laps : (
+                                                            <Typography variant="body2" sx={{ color: 'text.secondary' }}>-</Typography>
+                                                        )}
+                                                    </TableCell>
                                                 )}
                                                 <TableCell>
                                                     <Typography 
