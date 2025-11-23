@@ -1,5 +1,5 @@
 import React, { useMemo, memo, useState, useCallback } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceArea } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceArea, ReferenceDot } from 'recharts';
 import { Box, Typography, Chip, IconButton, Stack, Button, Tooltip as MuiTooltip } from '@mui/material';
 import ZoomInIcon from '@mui/icons-material/ZoomIn';
 import ZoomOutIcon from '@mui/icons-material/ZoomOut';
@@ -50,7 +50,7 @@ const CustomTooltip = ({ active, payload, label, driverInfo }: any) => {
                     const compound = entry.payload[`driver_${driverNum}_compound`] || null;
                     const tyreAge = entry.payload[`driver_${driverNum}_tyre_age`] as number | null | undefined;
                     const isScrubSet = Boolean(entry.payload[`driver_${driverNum}_is_scrub_set`]);
-                    
+
                     if (value === null || value === undefined) {
                         return (
                             <Typography key={`${entry.dataKey}-na-${label}`} variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 0.5 }}>
@@ -58,11 +58,11 @@ const CustomTooltip = ({ active, payload, label, driverInfo }: any) => {
                             </Typography>
                         );
                     }
-                    
+
                     return (
                         <Box key={`${entry.dataKey}-${label}`} sx={{ mb: 0.5 }}>
                             <Box
-                                sx={{ 
+                                sx={{
                                     color: entry.color,
                                     fontWeight: 500,
                                     display: 'flex',
@@ -71,10 +71,10 @@ const CustomTooltip = ({ active, payload, label, driverInfo }: any) => {
                                     fontSize: '0.875rem',
                                 }}
                             >
-                                <Typography 
+                                <Typography
                                     component="span"
-                                    variant="body2" 
-                                    sx={{ 
+                                    variant="body2"
+                                    sx={{
                                         color: entry.color,
                                         fontWeight: 500,
                                     }}
@@ -95,8 +95,8 @@ const CustomTooltip = ({ active, payload, label, driverInfo }: any) => {
                                     )}
                                 </Typography>
                                 {isPitOutLap && (
-                                    <Chip 
-                                        label="Pit Out" 
+                                    <Chip
+                                        label="Pit Out"
                                         size="small"
                                         sx={{
                                             height: 18,
@@ -157,11 +157,11 @@ const renderPitOutDot = (driverNumber: number, driverColor: string) => (props: a
     const { cx, cy, payload, index } = props;
     const isPitOutLap = payload?.[`driver_${driverNumber}_pit_out`] || false;
     const lapNumber = payload?.lapNumber || index;
-    
+
     if (!cx || !cy) {
         return <g key={`dot-empty-${driverNumber}-${lapNumber}`}></g>;
     }
-    
+
     return (
         <g key={`dot-${driverNumber}-${lapNumber}`}>
             <circle
@@ -194,9 +194,9 @@ const mapEventsToLaps = (
     selectedDrivers: number[]
 ): Map<number, RaceControlEvent[]> => {
     const lapToEvents = new Map<number, RaceControlEvent[]>();
-    
+
     if (!events.length || !lapData.length) return lapToEvents;
-    
+
     // Create a map of lap number to date_start for each driver
     const lapDateMap = new Map<number, Date>();
     lapData.forEach(lap => {
@@ -204,14 +204,14 @@ const mapEventsToLaps = (
             lapDateMap.set(lap.lap_number, new Date(lap.date_start));
         }
     });
-    
+
     events.forEach(event => {
         const eventDate = new Date(event.date);
-        
+
         // Find the lap this event belongs to
         let matchedLap: number | null = null;
         let minTimeDiff = Infinity;
-        
+
         lapDateMap.forEach((lapDate, lapNum) => {
             const timeDiff = Math.abs(eventDate.getTime() - lapDate.getTime());
             // Match to the closest lap within 5 minutes (300000ms)
@@ -220,12 +220,12 @@ const mapEventsToLaps = (
                 matchedLap = lapNum;
             }
         });
-        
+
         if (matchedLap !== null) {
             // Filter events based on scope
             const isDriverSpecific = event.scope === 'Driver' && event.driver_number !== null;
             const isCommonEvent = event.scope === 'Track' || event.scope === 'Sector' || !event.scope;
-            
+
             // Show driver-specific events only if driver is selected
             // Show common events always
             if ((isDriverSpecific && selectedDrivers.includes(event.driver_number!)) || isCommonEvent) {
@@ -236,7 +236,7 @@ const mapEventsToLaps = (
             }
         }
     });
-    
+
     return lapToEvents;
 };
 
@@ -400,10 +400,10 @@ const LapComparisonChart: React.FC<LapComparisonChartProps> = ({
     return (
         <Box sx={{ width: '100%' }}>
             {/* Zoom Controls */}
-            <Stack 
-                direction="row" 
-                spacing={1} 
-                alignItems="center" 
+            <Stack
+                direction="row"
+                spacing={1}
+                alignItems="center"
                 sx={{ mb: 2, justifyContent: 'flex-end' }}
             >
                 <Typography variant="body2" sx={{ color: 'text.secondary', mr: 1 }}>
@@ -445,329 +445,11 @@ const LapComparisonChart: React.FC<LapComparisonChartProps> = ({
                 </Button>
             </Stack>
 
-            {/* Race Control Events Row */}
-            {eventsByLap.size > 0 && displayedChartData.length > 0 && (
-                <Box 
-                    sx={{ 
-                        width: '100%', 
-                        height: 30, 
-                        mb: 1,
-                        display: 'flex',
-                        alignItems: 'center',
-                        position: 'relative',
-                    }}
-                >
-                    <Box sx={{ width: 130, flexShrink: 0 }} />
-                    <Box 
-                        sx={{ 
-                            flex: 1, 
-                            position: 'relative', 
-                            height: '100%',
-                            alignItems: 'center',
-                            pr: '30px', // Match chart right margin
-                        }}
-                    >
-                        {displayedChartData.map((dataPoint, index) => {
-                            const lapNum = dataPoint.lapNumber as number;
-                            const events = eventsByLap.get(lapNum) || [];
-                            if (events.length === 0) return null;
-                            
-                            // Calculate position to match Recharts categorical axis spacing exactly
-                            // Recharts evenly distributes points, but the first point has a small left offset
-                            // Since the right side aligns correctly, we know the last point is at ~100%
-                            // The left side being off suggests the first point needs adjustment
-                            const totalPoints = displayedChartData.length;
-                            if (totalPoints === 1) {
-                                return null; // Skip if only one point
-                            }
-                            
-                            // Recharts typically has a small left padding (around 1-2% of chart width)
-                            // but the right side aligns, so we only adjust the left side
-                            const leftPadding = 1.5; // Percentage offset from left edge
-                            const availableRange = 100 - leftPadding; // Right side aligns at 100%
-                            
-                            // Calculate position: first point at leftPadding%, last point at 100%
-                            const positionPercent = leftPadding + (index / (totalPoints - 1)) * availableRange;
-                            
-                            // Get the most significant event for the indicator
-                            const getPrimaryEvent = () => {
-                                // Priority: RED > Safety > YELLOW > GREEN > Other
-                                const redEvent = events.find(e => e.flag === 'RED');
-                                if (redEvent) return redEvent;
-                                const safetyEvent = events.find(e => e.category === 'Safety');
-                                if (safetyEvent) return safetyEvent;
-                                const yellowEvent = events.find(e => e.flag === 'YELLOW');
-                                if (yellowEvent) return yellowEvent;
-                                const greenEvent = events.find(e => e.flag === 'GREEN');
-                                if (greenEvent) return greenEvent;
-                                return events[0];
-                            };
-                            
-                            const primaryEvent = getPrimaryEvent();
-                            
-                            const getEventColor = () => {
-                                if (primaryEvent.flag === 'YELLOW') return '#FFC107';
-                                if (primaryEvent.flag === 'RED') return '#F44336';
-                                if (primaryEvent.flag === 'GREEN') return '#4CAF50';
-                                if (primaryEvent.category === 'Safety') return '#FF9800';
-                                return '#90CAF9';
-                            };
-                            
-                            // Group events by type for better organization
-                            const groupedEvents = {
-                                flags: events.filter(e => e.flag),
-                                safety: events.filter(e => e.category === 'Safety' && !e.flag),
-                                other: events.filter(e => !e.flag && e.category !== 'Safety'),
-                            };
-                            
-                            const getFlagIcon = (flag: string | null) => {
-                                switch (flag?.toUpperCase()) {
-                                    case 'RED': return '🔴';
-                                    case 'YELLOW': return '🟡';
-                                    case 'DOUBLE YELLOW': return '🟡🟡';
-                                    case 'GREEN': return '🟢';
-                                    case 'CLEAR': return '✅';
-                                    default: return '⚡';
-                                }
-                            };
-                            
-                            const eventTooltipContent = (
-                                <Box 
-                                    sx={{ 
-                                        p: 2,
-                                        minWidth: 280,
-                                        maxWidth: 400,
-                                        backgroundColor: 'rgba(26, 26, 26, 0.98)',
-                                        border: '1px solid rgba(255, 255, 255, 0.12)',
-                                        borderRadius: '12px',
-                                        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.6)',
-                                        backdropFilter: 'blur(10px)',
-                                    }}
-                                >
-                                    <Typography 
-                                        variant="subtitle2" 
-                                        sx={{ 
-                                            fontWeight: 700, 
-                                            mb: 1.5, 
-                                            color: '#FFFFFF',
-                                            fontSize: '0.95rem',
-                                            letterSpacing: '0.5px',
-                                        }}
-                                    >
-                                        Lap {lapNum}
-                                        <Typography 
-                                            component="span" 
-                                            sx={{ 
-                                                ml: 1, 
-                                                color: 'rgba(255, 255, 255, 0.6)',
-                                                fontWeight: 500,
-                                                fontSize: '0.85rem',
-                                            }}
-                                        >
-                                            • {events.length} event{events.length > 1 ? 's' : ''}
-                                        </Typography>
-                                    </Typography>
-                                    
-                                    {/* Flags Section */}
-                                    {groupedEvents.flags.length > 0 && (
-                                        <Box sx={{ mb: 1.5 }}>
-                                            <Typography 
-                                                variant="caption" 
-                                                sx={{ 
-                                                    color: 'rgba(255, 255, 255, 0.5)',
-                                                    fontSize: '0.7rem',
-                                                    textTransform: 'uppercase',
-                                                    letterSpacing: '1px',
-                                                    mb: 0.75,
-                                                    display: 'block',
-                                                }}
-                                            >
-                                                Flags
-                                            </Typography>
-                                            {groupedEvents.flags.map((event, eventIdx) => (
-                                                <Box 
-                                                    key={`flag-${eventIdx}`} 
-                                                    sx={{ 
-                                                        mb: 0.75,
-                                                        display: 'flex',
-                                                        alignItems: 'flex-start',
-                                                        gap: 1,
-                                                    }}
-                                                >
-                                                    <Typography sx={{ fontSize: '0.9rem', lineHeight: 1.2 }}>
-                                                        {getFlagIcon(event.flag)}
-                                                    </Typography>
-                                                    <Typography 
-                                                        variant="body2" 
-                                                        sx={{ 
-                                                            color: 'rgba(255, 255, 255, 0.95)',
-                                                            fontSize: '0.8rem',
-                                                            lineHeight: 1.4,
-                                                            flex: 1,
-                                                        }}
-                                                    >
-                                                        {event.message}
-                                                    </Typography>
-                                                </Box>
-                                            ))}
-                                        </Box>
-                                    )}
-                                    
-                                    {/* Safety Section */}
-                                    {groupedEvents.safety.length > 0 && (
-                                        <Box sx={{ mb: 1.5 }}>
-                                            <Typography 
-                                                variant="caption" 
-                                                sx={{ 
-                                                    color: 'rgba(255, 255, 255, 0.5)',
-                                                    fontSize: '0.7rem',
-                                                    textTransform: 'uppercase',
-                                                    letterSpacing: '1px',
-                                                    mb: 0.75,
-                                                    display: 'block',
-                                                }}
-                                            >
-                                                Safety
-                                            </Typography>
-                                            {groupedEvents.safety.map((event, eventIdx) => (
-                                                <Box 
-                                                    key={`safety-${eventIdx}`} 
-                                                    sx={{ 
-                                                        mb: 0.75,
-                                                        display: 'flex',
-                                                        alignItems: 'flex-start',
-                                                        gap: 1,
-                                                    }}
-                                                >
-                                                    <Typography sx={{ fontSize: '0.9rem', lineHeight: 1.2 }}>
-                                                        🚨
-                                                    </Typography>
-                                                    <Typography 
-                                                        variant="body2" 
-                                                        sx={{ 
-                                                            color: 'rgba(255, 255, 255, 0.95)',
-                                                            fontSize: '0.8rem',
-                                                            lineHeight: 1.4,
-                                                            flex: 1,
-                                                        }}
-                                                    >
-                                                        {event.message}
-                                                    </Typography>
-                                                </Box>
-                                            ))}
-                                        </Box>
-                                    )}
-                                    
-                                    {/* Other Events Section */}
-                                    {groupedEvents.other.length > 0 && (
-                                        <Box>
-                                            <Typography 
-                                                variant="caption" 
-                                                sx={{ 
-                                                    color: 'rgba(255, 255, 255, 0.5)',
-                                                    fontSize: '0.7rem',
-                                                    textTransform: 'uppercase',
-                                                    letterSpacing: '1px',
-                                                    mb: 0.75,
-                                                    display: 'block',
-                                                }}
-                                            >
-                                                Other
-                                            </Typography>
-                                            {groupedEvents.other.map((event, eventIdx) => (
-                                                <Box 
-                                                    key={`other-${eventIdx}`} 
-                                                    sx={{ 
-                                                        mb: 0.75,
-                                                        display: 'flex',
-                                                        alignItems: 'flex-start',
-                                                        gap: 1,
-                                                    }}
-                                                >
-                                                    <Typography sx={{ fontSize: '0.9rem', lineHeight: 1.2 }}>
-                                                        ⚡
-                                                    </Typography>
-                                                    <Typography 
-                                                        variant="body2" 
-                                                        sx={{ 
-                                                            color: 'rgba(255, 255, 255, 0.95)',
-                                                            fontSize: '0.8rem',
-                                                            lineHeight: 1.4,
-                                                            flex: 1,
-                                                        }}
-                                                    >
-                                                        {event.message}
-                                                    </Typography>
-                                                </Box>
-                                            ))}
-                                        </Box>
-                                    )}
-                                </Box>
-                            );
-                            
-                            return (
-                                <MuiTooltip
-                                    key={`events-${lapNum}`}
-                                    title={eventTooltipContent}
-                                    arrow
-                                    placement="top"
-                                    componentsProps={{
-                                        tooltip: {
-                                            sx: {
-                                                backgroundColor: 'transparent',
-                                                padding: 0,
-                                                maxWidth: 'none',
-                                            },
-                                        },
-                                        arrow: {
-                                            sx: {
-                                                color: 'rgba(26, 26, 26, 0.98)',
-                                            },
-                                        },
-                                    }}
-                                >
-                                    <Box
-                                        sx={{
-                                            position: 'absolute',
-                                            left: `${positionPercent}%`,
-                                            transform: 'translateX(-50%)',
-                                            display: 'flex',
-                                            justifyContent: 'center',
-                                            alignItems: 'center',
-                                            cursor: 'pointer',
-                                            top: '50%',
-                                            marginTop: '-4px',
-                                        }}
-                                    >
-                                        <Box
-                                            sx={{
-                                                width: 10,
-                                                height: 10,
-                                                borderRadius: '50%',
-                                                backgroundColor: getEventColor(),
-                                                border: '2px solid rgba(255, 255, 255, 0.4)',
-                                                boxShadow: `0 0 10px ${getEventColor()}, 0 2px 4px rgba(0, 0, 0, 0.3)`,
-                                                transition: 'all 0.2s ease',
-                                                '&:hover': {
-                                                    transform: 'scale(1.4)',
-                                                    boxShadow: `0 0 16px ${getEventColor()}, 0 4px 8px rgba(0, 0, 0, 0.4)`,
-                                                    border: '2px solid rgba(255, 255, 255, 0.6)',
-                                                },
-                                            }}
-                                        />
-                                    </Box>
-                                </MuiTooltip>
-                            );
-                        })}
-                    </Box>
-                </Box>
-            )}
-
             <Box sx={{ width: '100%', height: 500 }}>
                 <ResponsiveContainer width="100%" height="100%">
                     <LineChart
                         data={displayedChartData}
-                        margin={{ top: 5, right: 30, left: 130, bottom: 60 }}
+                        margin={{ top: 35, right: 30, left: 130, bottom: 60 }}
                         onMouseDown={handleMouseDown}
                         onMouseMove={handleMouseMove}
                         onMouseUp={handleMouseUp}
@@ -789,9 +471,9 @@ const LapComparisonChart: React.FC<LapComparisonChartProps> = ({
                                 angle: -90,
                                 position: 'left',
                                 offset: -100,
-                                style: { 
-                                    fill: 'rgba(255, 255, 255, 0.9)', 
-                                    fontSize: '12px', 
+                                style: {
+                                    fill: 'rgba(255, 255, 255, 0.9)',
+                                    fontSize: '12px',
                                     fontStyle: 'italic',
                                     fontWeight: 700,
                                     textAnchor: 'middle',
@@ -800,8 +482,284 @@ const LapComparisonChart: React.FC<LapComparisonChartProps> = ({
                             tickFormatter={(value: number) => {
                                 return formatLapDuration(value);
                             }}
-                            allowDataOverflow
                         />
+                        <YAxis yAxisId="raceControl" hide domain={[0, 1]} />
+
+                        {displayedChartData.map((dataPoint) => {
+                            const lapNum = dataPoint.lapNumber as number;
+                            const events = eventsByLap.get(lapNum) || [];
+                            if (events.length === 0) return null;
+
+                            // Get the most significant event for the indicator
+                            const getPrimaryEvent = () => {
+                                // Priority: RED > Safety > YELLOW > GREEN > Other
+                                const redEvent = events.find(e => e.flag === 'RED');
+                                if (redEvent) return redEvent;
+                                const safetyEvent = events.find(e => e.category === 'Safety');
+                                if (safetyEvent) return safetyEvent;
+                                const yellowEvent = events.find(e => e.flag === 'YELLOW');
+                                if (yellowEvent) return yellowEvent;
+                                const greenEvent = events.find(e => e.flag === 'GREEN');
+                                if (greenEvent) return greenEvent;
+                                return events[0];
+                            };
+
+                            const primaryEvent = getPrimaryEvent();
+
+                            const getEventColor = () => {
+                                if (primaryEvent.flag === 'YELLOW') return '#FFC107';
+                                if (primaryEvent.flag === 'RED') return '#F44336';
+                                if (primaryEvent.flag === 'GREEN') return '#4CAF50';
+                                if (primaryEvent.category === 'Safety') return '#FF9800';
+                                return '#90CAF9';
+                            };
+
+                            // Group events by type for better organization
+                            const groupedEvents = {
+                                flags: events.filter(e => e.flag),
+                                safety: events.filter(e => e.category === 'Safety' && !e.flag),
+                                other: events.filter(e => !e.flag && e.category !== 'Safety'),
+                            };
+
+                            const getFlagIcon = (flag: string | null) => {
+                                switch (flag?.toUpperCase()) {
+                                    case 'RED': return '🔴';
+                                    case 'YELLOW': return '🟡';
+                                    case 'DOUBLE YELLOW': return '🟡🟡';
+                                    case 'GREEN': return '🟢';
+                                    case 'CLEAR': return '✅';
+                                    default: return '⚡';
+                                }
+                            };
+
+                            const eventTooltipContent = (
+                                <Box
+                                    sx={{
+                                        p: 2,
+                                        minWidth: 280,
+                                        maxWidth: 400,
+                                        backgroundColor: 'rgba(26, 26, 26, 0.98)',
+                                        border: '1px solid rgba(255, 255, 255, 0.12)',
+                                        borderRadius: '12px',
+                                        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.6)',
+                                        backdropFilter: 'blur(10px)',
+                                    }}
+                                >
+                                    <Typography
+                                        variant="subtitle2"
+                                        sx={{
+                                            fontWeight: 700,
+                                            mb: 1.5,
+                                            color: '#FFFFFF',
+                                            fontSize: '0.95rem',
+                                            letterSpacing: '0.5px',
+                                        }}
+                                    >
+                                        Lap {lapNum}
+                                        <Typography
+                                            component="span"
+                                            sx={{
+                                                ml: 1,
+                                                color: 'rgba(255, 255, 255, 0.6)',
+                                                fontWeight: 500,
+                                                fontSize: '0.85rem',
+                                            }}
+                                        >
+                                            • {events.length} event{events.length > 1 ? 's' : ''}
+                                        </Typography>
+                                    </Typography>
+
+                                    {/* Flags Section */}
+                                    {groupedEvents.flags.length > 0 && (
+                                        <Box sx={{ mb: 1.5 }}>
+                                            <Typography
+                                                variant="caption"
+                                                sx={{
+                                                    color: 'rgba(255, 255, 255, 0.5)',
+                                                    fontSize: '0.7rem',
+                                                    textTransform: 'uppercase',
+                                                    letterSpacing: '1px',
+                                                    mb: 0.75,
+                                                    display: 'block',
+                                                }}
+                                            >
+                                                Flags
+                                            </Typography>
+                                            {groupedEvents.flags.map((event, eventIdx) => (
+                                                <Box
+                                                    key={`flag-${eventIdx}`}
+                                                    sx={{
+                                                        mb: 0.75,
+                                                        display: 'flex',
+                                                        alignItems: 'flex-start',
+                                                        gap: 1,
+                                                    }}
+                                                >
+                                                    <Typography sx={{ fontSize: '0.9rem', lineHeight: 1.2 }}>
+                                                        {getFlagIcon(event.flag)}
+                                                    </Typography>
+                                                    <Typography
+                                                        variant="body2"
+                                                        sx={{
+                                                            color: 'rgba(255, 255, 255, 0.95)',
+                                                            fontSize: '0.8rem',
+                                                            lineHeight: 1.4,
+                                                            flex: 1,
+                                                        }}
+                                                    >
+                                                        {event.message}
+                                                    </Typography>
+                                                </Box>
+                                            ))}
+                                        </Box>
+                                    )}
+
+                                    {/* Safety Section */}
+                                    {groupedEvents.safety.length > 0 && (
+                                        <Box sx={{ mb: 1.5 }}>
+                                            <Typography
+                                                variant="caption"
+                                                sx={{
+                                                    color: 'rgba(255, 255, 255, 0.5)',
+                                                    fontSize: '0.7rem',
+                                                    textTransform: 'uppercase',
+                                                    letterSpacing: '1px',
+                                                    mb: 0.75,
+                                                    display: 'block',
+                                                }}
+                                            >
+                                                Safety
+                                            </Typography>
+                                            {groupedEvents.safety.map((event, eventIdx) => (
+                                                <Box
+                                                    key={`safety-${eventIdx}`}
+                                                    sx={{
+                                                        mb: 0.75,
+                                                        display: 'flex',
+                                                        alignItems: 'flex-start',
+                                                        gap: 1,
+                                                    }}
+                                                >
+                                                    <Typography sx={{ fontSize: '0.9rem', lineHeight: 1.2 }}>
+                                                        🚨
+                                                    </Typography>
+                                                    <Typography
+                                                        variant="body2"
+                                                        sx={{
+                                                            color: 'rgba(255, 255, 255, 0.95)',
+                                                            fontSize: '0.8rem',
+                                                            lineHeight: 1.4,
+                                                            flex: 1,
+                                                        }}
+                                                    >
+                                                        {event.message}
+                                                    </Typography>
+                                                </Box>
+                                            ))}
+                                        </Box>
+                                    )}
+
+                                    {/* Other Events Section */}
+                                    {groupedEvents.other.length > 0 && (
+                                        <Box>
+                                            <Typography
+                                                variant="caption"
+                                                sx={{
+                                                    color: 'rgba(255, 255, 255, 0.5)',
+                                                    fontSize: '0.7rem',
+                                                    textTransform: 'uppercase',
+                                                    letterSpacing: '1px',
+                                                    mb: 0.75,
+                                                    display: 'block',
+                                                }}
+                                            >
+                                                Other
+                                            </Typography>
+                                            {groupedEvents.other.map((event, eventIdx) => (
+                                                <Box
+                                                    key={`other-${eventIdx}`}
+                                                    sx={{
+                                                        mb: 0.75,
+                                                        display: 'flex',
+                                                        alignItems: 'flex-start',
+                                                        gap: 1,
+                                                    }}
+                                                >
+                                                    <Typography sx={{ fontSize: '0.9rem', lineHeight: 1.2 }}>
+                                                        ⚡
+                                                    </Typography>
+                                                    <Typography
+                                                        variant="body2"
+                                                        sx={{
+                                                            color: 'rgba(255, 255, 255, 0.95)',
+                                                            fontSize: '0.8rem',
+                                                            lineHeight: 1.4,
+                                                            flex: 1,
+                                                        }}
+                                                    >
+                                                        {event.message}
+                                                    </Typography>
+                                                </Box>
+                                            ))}
+                                        </Box>
+                                    )}
+                                </Box>
+                            );
+
+                            return (
+                                <ReferenceDot
+                                    key={`event-dot-${lapNum}`}
+                                    x={dataPoint.lap as string}
+                                    y={1}
+                                    yAxisId="raceControl"
+                                    shape={(props: any) => {
+                                        const { cx, cy } = props;
+                                        return (
+                                            <foreignObject x={cx - 10} y={cy - 10} width={20} height={20} style={{ overflow: 'visible' }}>
+                                                <MuiTooltip
+                                                    title={eventTooltipContent}
+                                                    arrow
+                                                    placement="top"
+                                                    componentsProps={{
+                                                        tooltip: {
+                                                            sx: {
+                                                                backgroundColor: 'transparent',
+                                                                padding: 0,
+                                                                maxWidth: 'none',
+                                                            },
+                                                        },
+                                                        arrow: {
+                                                            sx: {
+                                                                color: 'rgba(26, 26, 26, 0.98)',
+                                                            },
+                                                        },
+                                                    }}
+                                                >
+                                                    <Box
+                                                        sx={{
+                                                            width: 10,
+                                                            height: 10,
+                                                            borderRadius: '50%',
+                                                            backgroundColor: getEventColor(),
+                                                            border: '2px solid rgba(255, 255, 255, 0.4)',
+                                                            boxShadow: `0 0 10px ${getEventColor()}, 0 2px 4px rgba(0, 0, 0, 0.3)`,
+                                                            transition: 'all 0.2s ease',
+                                                            cursor: 'pointer',
+                                                            margin: '5px', // Center in 20x20 box
+                                                            '&:hover': {
+                                                                transform: 'scale(1.4)',
+                                                                boxShadow: `0 0 16px ${getEventColor()}, 0 4px 8px rgba(0, 0, 0, 0.4)`,
+                                                                border: '2px solid rgba(255, 255, 255, 0.6)',
+                                                            },
+                                                        }}
+                                                    />
+                                                </MuiTooltip>
+                                            </foreignObject>
+                                        );
+                                    }}
+                                />
+                            );
+                        })}
                         <Tooltip content={(props: any) => <CustomTooltip {...props} driverInfo={driverInfo} />} />
                         <Legend
                             wrapperStyle={{ paddingTop: '20px' }}
@@ -830,22 +788,22 @@ const LapComparisonChart: React.FC<LapComparisonChartProps> = ({
                             const x1 = (chartData[start]?.lap ?? '') as string | number;
                             const x2 = (chartData[end]?.lap ?? '') as string | number;
                             return (
-                            <ReferenceArea
-                                // Use labels from the full chartData for selection band
-                                x1={x1}
-                                x2={x2}
-                                y1={autoYAxisRange[0]}
-                                y2={autoYAxisRange[1]}
-                                stroke="rgba(225, 6, 0, 0.6)"
-                                strokeOpacity={0.3}
-                                fill="rgba(225, 6, 0, 0.15)"
-                            />
+                                <ReferenceArea
+                                    // Use labels from the full chartData for selection band
+                                    x1={x1}
+                                    x2={x2}
+                                    y1={autoYAxisRange[0]}
+                                    y2={autoYAxisRange[1]}
+                                    stroke="rgba(225, 6, 0, 0.6)"
+                                    strokeOpacity={0.3}
+                                    fill="rgba(225, 6, 0, 0.15)"
+                                />
                             );
                         })()}
                     </LineChart>
                 </ResponsiveContainer>
             </Box>
-            
+
             {/* Instructions */}
             <Typography variant="caption" sx={{ color: 'text.secondary', mt: 1, display: 'block' }}>
                 💡 Tip: Click and drag on the chart to select a lap window (X-axis). Use the buttons above to adjust the time window (Y-axis).
