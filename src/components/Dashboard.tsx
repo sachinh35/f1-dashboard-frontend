@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { getYears, getRacesForYear, getSessionResults, getSessionLapData, getSessionStints, getSessionRaceControlEvents, LapData, Stint, RaceControlEvent } from '../services/api';
+import { getYears, getRacesForYear, getSessionResults, getSessionLapData, getSessionStints, getSessionRaceControlEvents, LapData, Stint, RaceControlEvent, startLiveStream } from '../services/api';
 import {
     Box,
     Grid,
@@ -25,18 +25,23 @@ import {
     Stack,
     Chip,
     Divider,
-    CircularProgress
+    CircularProgress,
+    Button,
+    Alert,
+    Snackbar
 } from '@mui/material';
 import TuneIcon from '@mui/icons-material/Tune';
 import EmojiFlagsIcon from '@mui/icons-material/EmojiFlags';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import SportsMotorsportsIcon from '@mui/icons-material/SportsMotorsports';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
+import LiveTvIcon from '@mui/icons-material/LiveTv';
 import LapComparisonChart from './LapComparisonChart';
 import { Race, EnrichedF1SessionResult } from '../types';
 import { formatDuration } from '../utils/formatting';
 import { getCountryFlagEmoji, getCountryName } from '../utils/countryMapping';
 import { mergeLapData } from '../utils/chartDataProcessing';
+import { authenticateWithPrompt } from '../services/f1Auth';
 
 const Dashboard = () => {
     const [years, setYears] = useState<number[]>([]);
@@ -64,6 +69,9 @@ const Dashboard = () => {
         dsq: true,
     });
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+    const [streaming, setStreaming] = useState(false);
+    const [streamingLoading, setStreamingLoading] = useState(false);
+    const [streamMessage, setStreamMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
     const handleSettingsClick = (event: React.MouseEvent<HTMLButtonElement>) => {
         setAnchorEl(event.currentTarget);
@@ -71,6 +79,43 @@ const Dashboard = () => {
 
     const handleSettingsClose = () => {
         setAnchorEl(null);
+    };
+
+    const handleStartLiveStream = async () => {
+        try {
+            setStreamingLoading(true);
+            setStreamMessage(null);
+
+            // Step 1: Authenticate with F1 TV Pro using email/password
+            const { authenticateWithPrompt } = await import('../services/f1Auth');
+            const authTokens = await authenticateWithPrompt();
+
+            // Step 2: Start the stream on the backend
+            const response = await startLiveStream(
+                authTokens.access_token,
+                authTokens.refresh_token,
+                authTokens.cookies
+            );
+
+            setStreaming(true);
+            setStreamMessage({
+                type: 'success',
+                text: `Live stream started! Stream ID: ${response.stream_id}. Log file: ${response.log_file}`
+            });
+        } catch (error: any) {
+            console.error('Error starting live stream:', error);
+            setStreamMessage({
+                type: 'error',
+                text: error.message || 'Failed to start live stream. Please check your F1 TV Pro credentials and try again.'
+            });
+            setStreaming(false);
+        } finally {
+            setStreamingLoading(false);
+        }
+    };
+
+    const handleCloseSnackbar = () => {
+        setStreamMessage(null);
     };
 
     const handleColumnVisibilityChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -274,16 +319,59 @@ const Dashboard = () => {
             px: { xs: 2, sm: 3, md: 4 }
         }}>
             <Box sx={{ mb: 4 }}>
-                <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
-                    <SportsMotorsportsIcon sx={{ fontSize: 40, color: 'primary.main' }} />
-                    <Typography variant="h1" component="h1">
-                        F1 Dashboard
-                    </Typography>
+                <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+                    <Stack direction="row" spacing={2} alignItems="center">
+                        <SportsMotorsportsIcon sx={{ fontSize: 40, color: 'primary.main' }} />
+                        <Typography variant="h1" component="h1">
+                            F1 Dashboard
+                        </Typography>
+                    </Stack>
+                    <Button
+                        variant="contained"
+                        color="primary"
+                        startIcon={<LiveTvIcon />}
+                        onClick={handleStartLiveStream}
+                        disabled={streamingLoading || streaming}
+                        sx={{
+                            px: 3,
+                            py: 1.5,
+                            borderRadius: 2,
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            boxShadow: streaming ? '0 4px 12px rgba(225, 6, 0, 0.3)' : 'none',
+                        }}
+                    >
+                        {streamingLoading ? (
+                            <>
+                                <CircularProgress size={20} sx={{ mr: 1 }} color="inherit" />
+                                Starting...
+                            </>
+                        ) : streaming ? (
+                            'Streaming Active'
+                        ) : (
+                            'Start Live Stream'
+                        )}
+                    </Button>
                 </Stack>
                 <Typography variant="body1" sx={{ color: 'text.secondary', ml: 6 }}>
                     Explore Formula 1 race results and session data
                 </Typography>
             </Box>
+
+            <Snackbar
+                open={streamMessage !== null}
+                autoHideDuration={6000}
+                onClose={handleCloseSnackbar}
+                anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+            >
+                <Alert
+                    onClose={handleCloseSnackbar}
+                    severity={streamMessage?.type || 'info'}
+                    sx={{ width: '100%' }}
+                >
+                    {streamMessage?.text}
+                </Alert>
+            </Snackbar>
 
             <Grid container spacing={3} sx={{ mb: 4 }}>
                 <Grid item xs={12} sm={6} md={4}>

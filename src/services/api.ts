@@ -80,3 +80,51 @@ export const getSessionRaceControlEvents = async (session_key: number): Promise<
     const response = await axios.get(`${API_BASE_URL}/session-race-control-events/${session_key}`);
     return response.data.events as RaceControlEvent[];
 };
+
+export interface StartStreamRequest {
+    access_token: string;
+    refresh_token?: string;
+    cookies?: string;
+}
+
+export interface AuthenticateRequest {
+    email: string;
+    password: string;
+}
+
+export interface AuthenticateResponse {
+    success: boolean;
+    access_token: string;
+    cookies?: string;
+    message?: string;
+}
+
+export interface StartStreamResponse {
+    success: boolean;
+    message: string;
+    stream_id: string;
+    log_file: string;
+}
+
+export const authenticateF1TV = async (email: string, password: string): Promise<AuthenticateResponse> => {
+    const response = await axios.post<AuthenticateResponse>(
+        `${API_BASE_URL}/authenticate-f1tv`,
+        {
+            email,
+            password
+        } as AuthenticateRequest
+    );
+    return response.data;
+};
+
+export const startLiveStream = async (accessToken: string, refreshToken?: string, cookies?: string): Promise<StartStreamResponse> => {
+    const response = await axios.post<StartStreamResponse>(
+        `${API_BASE_URL}/start-live-stream`,
+        {
+            access_token: accessToken,
+            refresh_token: refreshToken,
+            cookies: cookies
+        } as StartStreamRequest
+    );
+    return response.data;
+};
