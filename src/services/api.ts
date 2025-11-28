@@ -82,7 +82,7 @@ export const getSessionRaceControlEvents = async (session_key: number): Promise<
 };
 
 export interface StartStreamRequest {
-    access_token: string;
+    access_token?: string;
     refresh_token?: string;
     cookies?: string;
 }
@@ -117,7 +117,7 @@ export const authenticateF1TV = async (email: string, password: string): Promise
     return response.data;
 };
 
-export const startLiveStream = async (accessToken: string, refreshToken?: string, cookies?: string): Promise<StartStreamResponse> => {
+export const startLiveStream = async (accessToken?: string, refreshToken?: string, cookies?: string): Promise<StartStreamResponse> => {
     const response = await axios.post<StartStreamResponse>(
         `${API_BASE_URL}/start-live-stream`,
         {

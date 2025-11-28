@@ -41,7 +41,6 @@ import { Race, EnrichedF1SessionResult } from '../types';
 import { formatDuration } from '../utils/formatting';
 import { getCountryFlagEmoji, getCountryName } from '../utils/countryMapping';
 import { mergeLapData } from '../utils/chartDataProcessing';
-import { authenticateWithPrompt } from '../services/f1Auth';
 
 const Dashboard = () => {
     const [years, setYears] = useState<number[]>([]);
@@ -86,16 +85,8 @@ const Dashboard = () => {
             setStreamingLoading(true);
             setStreamMessage(null);
 
-            // Step 1: Authenticate with F1 TV Pro using email/password
-            const { authenticateWithPrompt } = await import('../services/f1Auth');
-            const authTokens = await authenticateWithPrompt();
-
-            // Step 2: Start the stream on the backend
-            const response = await startLiveStream(
-                authTokens.access_token,
-                authTokens.refresh_token,
-                authTokens.cookies
-            );
+            // Step 1: Start the stream on the backend (backend handles auth using saved token)
+            const response = await startLiveStream();
 
             setStreaming(true);
             setStreamMessage({
@@ -104,9 +95,21 @@ const Dashboard = () => {
             });
         } catch (error: any) {
             console.error('Error starting live stream:', error);
+            let errorMessage = 'Failed to start live stream.';
+
+            if (error.response) {
+                if (error.response.status === 400 || error.response.status === 401) {
+                    errorMessage = 'Authentication required. Please run "python auth_helper.py" in the backend directory to authenticate with F1 TV Pro.';
+                } else if (error.response.data?.detail) {
+                    errorMessage = error.response.data.detail;
+                }
+            } else if (error.message) {
+                errorMessage = error.message;
+            }
+
             setStreamMessage({
                 type: 'error',
-                text: error.message || 'Failed to start live stream. Please check your F1 TV Pro credentials and try again.'
+                text: errorMessage
             });
             setStreaming(false);
         } finally {
@@ -228,7 +231,7 @@ const Dashboard = () => {
 
                 if (driversToFetch.length === 0) {
                     // All selected drivers already have data, just filter existing data
-                    setLapData(prevData => 
+                    setLapData(prevData =>
                         prevData.filter(lap => selectedDrivers.has(lap.driver_number))
                     );
                     return;
@@ -243,7 +246,7 @@ const Dashboard = () => {
 
                 try {
                     const newData = await getSessionLapData(selectedSessionKey, driversToFetch);
-                    
+
                     // Mark these drivers as fetched
                     driversToFetch.forEach(driverNum => {
                         fetchedDriversRef.current.add(driverNum);
@@ -277,7 +280,7 @@ const Dashboard = () => {
             fetchedDriversRef.current.clear();
         } else {
             // Drivers deselected (but some remain), filter existing data
-            setLapData(prevData => 
+            setLapData(prevData =>
                 prevData.filter(lap => selectedDrivers.has(lap.driver_number))
             );
             // Remove deselected drivers from fetched cache
@@ -311,8 +314,8 @@ const Dashboard = () => {
     }
 
     return (
-        <Box sx={{ 
-            flexGrow: 1, 
+        <Box sx={{
+            flexGrow: 1,
             minHeight: '100vh',
             background: 'linear-gradient(180deg, #0A0A0A 0%, #0F0F0F 100%)',
             py: { xs: 3, md: 4 },
@@ -375,7 +378,7 @@ const Dashboard = () => {
 
             <Grid container spacing={3} sx={{ mb: 4 }}>
                 <Grid item xs={12} sm={6} md={4}>
-                    <Card elevation={0} sx={{ 
+                    <Card elevation={0} sx={{
                         height: '100%',
                         transition: 'all 0.3s ease',
                         '&:hover': {
@@ -420,7 +423,7 @@ const Dashboard = () => {
                     </Card>
                 </Grid>
                 <Grid item xs={12} sm={6} md={4}>
-                    <Card elevation={0} sx={{ 
+                    <Card elevation={0} sx={{
                         height: '100%',
                         transition: 'all 0.3s ease',
                         '&:hover': {
@@ -478,7 +481,7 @@ const Dashboard = () => {
                     </Card>
                 </Grid>
                 <Grid item xs={12} sm={6} md={4}>
-                    <Card elevation={0} sx={{ 
+                    <Card elevation={0} sx={{
                         height: '100%',
                         transition: 'all 0.3s ease',
                         '&:hover': {
@@ -526,11 +529,11 @@ const Dashboard = () => {
             {sessionResults.length > 0 && (
                 <Card elevation={0} sx={{ mt: 2 }}>
                     <CardContent sx={{ p: 0 }}>
-                        <Box sx={{ 
-                            p: 3, 
+                        <Box sx={{
+                            p: 3,
                             pb: 2,
-                            display: 'flex', 
-                            justifyContent: 'space-between', 
+                            display: 'flex',
+                            justifyContent: 'space-between',
                             alignItems: 'center',
                             borderBottom: '1px solid',
                             borderColor: 'divider'
@@ -541,34 +544,34 @@ const Dashboard = () => {
                                 </Typography>
                                 <Stack direction="row" spacing={1} flexWrap="wrap">
                                     {selectedYear && (
-                                        <Chip 
-                                            label={`${selectedYear}`} 
-                                            size="small" 
-                                            sx={{ 
+                                        <Chip
+                                            label={`${selectedYear}`}
+                                            size="small"
+                                            sx={{
                                                 backgroundColor: 'rgba(225, 6, 0, 0.15)',
                                                 color: 'primary.main',
                                                 fontWeight: 600
-                                            }} 
+                                            }}
                                         />
                                     )}
                                     {selectedLocation && (
-                                        <Chip 
-                                            label={selectedLocation} 
+                                        <Chip
+                                            label={selectedLocation}
                                             size="small"
-                                            sx={{ 
+                                            sx={{
                                                 backgroundColor: 'rgba(255, 255, 255, 0.08)',
                                                 color: 'text.primary',
-                                            }} 
+                                            }}
                                         />
                                     )}
                                     {sessions.find(s => s.session_key === selectedSessionKey)?.session_name && (
-                                        <Chip 
-                                            label={sessions.find(s => s.session_key === selectedSessionKey)?.session_name} 
+                                        <Chip
+                                            label={sessions.find(s => s.session_key === selectedSessionKey)?.session_name}
                                             size="small"
-                                            sx={{ 
+                                            sx={{
                                                 backgroundColor: 'rgba(255, 255, 255, 0.08)',
                                                 color: 'text.primary',
-                                            }} 
+                                            }}
                                         />
                                     )}
                                 </Stack>
@@ -653,7 +656,7 @@ const Dashboard = () => {
                                     </TableHead>
                                     <TableBody>
                                         {sessionResults.map((result, index) => (
-                                            <TableRow 
+                                            <TableRow
                                                 key={result.driver_number}
                                                 sx={{
                                                     '&:first-of-type': {
@@ -662,15 +665,15 @@ const Dashboard = () => {
                                                 }}
                                             >
                                                 <TableCell>
-                                                    <Chip 
-                                                        label={result.position || '-'} 
+                                                    <Chip
+                                                        label={result.position || '-'}
                                                         size="small"
                                                         sx={{
-                                                            backgroundColor: index === 0 
-                                                                ? 'primary.main' 
-                                                                : result.position === 1 
-                                                                ? 'rgba(225, 6, 0, 0.3)'
-                                                                : 'rgba(255, 255, 255, 0.08)',
+                                                            backgroundColor: index === 0
+                                                                ? 'primary.main'
+                                                                : result.position === 1
+                                                                    ? 'rgba(225, 6, 0, 0.3)'
+                                                                    : 'rgba(255, 255, 255, 0.08)',
                                                             color: index === 0 ? 'white' : 'text.primary',
                                                             fontWeight: 700,
                                                             minWidth: 36,
@@ -711,9 +714,9 @@ const Dashboard = () => {
                                                     </TableCell>
                                                 )}
                                                 <TableCell>
-                                                    <Typography 
-                                                        variant="body2" 
-                                                        sx={{ 
+                                                    <Typography
+                                                        variant="body2"
+                                                        sx={{
                                                             fontFamily: 'monospace',
                                                             color: result.position === 1 ? 'primary.main' : 'text.primary',
                                                             fontWeight: result.position === 1 ? 700 : 400,
