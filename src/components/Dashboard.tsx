@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { getYears, getRacesForYear, getSessionResults, getSessionLapData, getSessionStints, getSessionRaceControlEvents, LapData, Stint, RaceControlEvent, startLiveStream } from '../services/api';
+import { useNavigate } from 'react-router-dom';
+import { getYears, getRacesForYear, getSessionResults, getSessionLapData, getSessionStints, getSessionRaceControlEvents, LapData, Stint, RaceControlEvent, startLiveStream, startSimulation } from '../services/api';
 import {
     Box,
     Grid,
@@ -72,6 +73,8 @@ const Dashboard = () => {
     const [streamingLoading, setStreamingLoading] = useState(false);
     const [streamMessage, setStreamMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
+    const navigate = useNavigate();
+
     const handleSettingsClick = (event: React.MouseEvent<HTMLButtonElement>) => {
         setAnchorEl(event.currentTarget);
     };
@@ -93,6 +96,10 @@ const Dashboard = () => {
                 type: 'success',
                 text: `Live stream started! Stream ID: ${response.stream_id}. Log file: ${response.log_file}`
             });
+
+            // Redirect to live stream page
+            navigate(`/live-stream/${response.stream_id}`);
+
         } catch (error: any) {
             console.error('Error starting live stream:', error);
             let errorMessage = 'Failed to start live stream.';
@@ -354,6 +361,37 @@ const Dashboard = () => {
                         ) : (
                             'Start Live Stream'
                         )}
+                    </Button>
+                    <Button
+                        variant="outlined"
+                        color="secondary"
+                        onClick={async () => {
+                            try {
+                                setStreamingLoading(true);
+                                const response = await startSimulation();
+                                setStreaming(true);
+                                navigate(`/live-stream/${response.stream_id}`);
+                            } catch (error: any) {
+                                console.error('Error starting simulation:', error);
+                                setStreamMessage({
+                                    type: 'error',
+                                    text: 'Failed to start simulation'
+                                });
+                            } finally {
+                                setStreamingLoading(false);
+                            }
+                        }}
+                        disabled={streamingLoading || streaming}
+                        sx={{
+                            px: 3,
+                            py: 1.5,
+                            borderRadius: 2,
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            ml: 2
+                        }}
+                    >
+                        Test Simulation
                     </Button>
                 </Stack>
                 <Typography variant="body1" sx={{ color: 'text.secondary', ml: 6 }}>

@@ -128,3 +128,10 @@ export const startLiveStream = async (accessToken?: string, refreshToken?: strin
     );
     return response.data;
 };
+
+export const startSimulation = async (): Promise<StartStreamResponse> => {
+    const response = await axios.post<StartStreamResponse>(
+        `${API_BASE_URL}/simulate-live-stream`
+    );
+    return response.data;
+};
