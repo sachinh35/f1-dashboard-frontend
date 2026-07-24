@@ -1,4 +1,4 @@
-import { createTheme } from '@mui/material/styles';
+import { createTheme, Shadows } from '@mui/material/styles';
 
 const theme = createTheme({
   palette: {
@@ -73,7 +73,7 @@ const theme = createTheme({
     '0 32px 80px rgba(0, 0, 0, 0.6)',
     '0 40px 96px rgba(0, 0, 0, 0.7)',
     ...Array(15).fill('none'),
-  ],
+  ] as Shadows, // 10 real shadows + 15 'none' = MUI's required 25-element tuple
   components: {
     MuiButton: {
       styleOverrides: {

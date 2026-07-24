@@ -3,7 +3,7 @@ import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import theme from './theme';
 import Home from './pages/Home';
-import LiveStream from './pages/LiveStream';
+import RaceMode from './pages/RaceMode';
 
 function App() {
   return (
@@ -12,7 +12,7 @@ function App() {
       <Router>
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/live-stream/:streamId" element={<LiveStream />} />
+          <Route path="/live-stream/:streamId" element={<RaceMode />} />
         </Routes>
       </Router>
     </ThemeProvider>

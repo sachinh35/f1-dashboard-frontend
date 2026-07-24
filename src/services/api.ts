@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { LapComparisonData, TeamRadioClip } from '../types/raceMode';
 
 const API_BASE_URL = 'http://localhost:8000';
 
@@ -129,9 +130,35 @@ export const startLiveStream = async (accessToken?: string, refreshToken?: strin
     return response.data;
 };
 
-export const startSimulation = async (): Promise<StartStreamResponse> => {
+export interface SimulateStreamRequest {
+    log_file?: string;
+    speed_factor?: number;
+}
+
+export const startSimulation = async (request?: SimulateStreamRequest): Promise<StartStreamResponse> => {
     const response = await axios.post<StartStreamResponse>(
-        `${API_BASE_URL}/simulate-live-stream`
+        `${API_BASE_URL}/simulate-live-stream`,
+        request ?? {}
     );
+    return response.data;
+};
+
+export const getTeamRadioForSession = async (sessionKey: number): Promise<TeamRadioClip[]> => {
+    const response = await axios.get<{ session_key: number; clips: TeamRadioClip[] }>(
+        `${API_BASE_URL}/team-radio/${sessionKey}`
+    );
+    return response.data.clips;
+};
+
+export const getLapComparison = async (
+    sessionKey: number,
+    driverA: number,
+    lapA: number,
+    driverB: number,
+    lapB: number
+): Promise<LapComparisonData> => {
+    const response = await axios.get<LapComparisonData>(`${API_BASE_URL}/lap-comparison/${sessionKey}`, {
+        params: { driver_a: driverA, lap_a: lapA, driver_b: driverB, lap_b: lapB },
+    });
     return response.data;
 };
