@@ -4,7 +4,16 @@ import TimingTower from "./TimingTower";
 
 describe("TimingTower", () => {
   it("shows a waiting message when no drivers have arrived yet", () => {
-    render(<TimingTower drivers={{}} timingAppData={{}} timingStats={{}} selectedDrivers={[]} onToggleDriver={vi.fn()} />);
+    render(
+      <TimingTower
+        drivers={{}}
+        timingAppData={{}}
+        timingStats={{}}
+        selectedDrivers={[]}
+        onToggleDriver={vi.fn()}
+        battleRadar={{}}
+      />
+    );
     expect(screen.getByText(/waiting for timing data/i)).toBeInTheDocument();
   });
 
@@ -14,7 +23,14 @@ describe("TimingTower", () => {
       "3": { Position: "1" },
     };
     render(
-      <TimingTower drivers={drivers} timingAppData={{}} timingStats={{}} selectedDrivers={[]} onToggleDriver={vi.fn()} />
+      <TimingTower
+        drivers={drivers}
+        timingAppData={{}}
+        timingStats={{}}
+        selectedDrivers={[]}
+        onToggleDriver={vi.fn()}
+        battleRadar={{}}
+      />
     );
     const tlas = screen.getAllByText(/^(VER|NOR)$/).map((el) => el.textContent);
     expect(tlas).toEqual(["VER", "NOR"]); // VER is Position "1", must render first despite being driver "1"'s neighbor
@@ -29,6 +45,7 @@ describe("TimingTower", () => {
         timingStats={{}}
         selectedDrivers={[]}
         onToggleDriver={onToggle}
+        battleRadar={{}}
       />
     );
     fireEvent.click(screen.getByText("VER"));
@@ -43,6 +60,7 @@ describe("TimingTower", () => {
         timingStats={{}}
         selectedDrivers={[]}
         onToggleDriver={vi.fn()}
+        battleRadar={{}}
       />
     );
     const lapTime = screen.getByText("1:24.021");

@@ -1,6 +1,7 @@
 import React from "react";
 import { getRosterEntry } from "../../data/driverRoster";
-import { DriverTiming, TimingAppDataInfo, TimingStatsInfo } from "../../types/raceMode";
+import { BattleRadarAlert, DriverTiming, TimingAppDataInfo, TimingStatsInfo } from "../../types/raceMode";
+import BattleRadarIndicator from "./BattleRadarIndicator";
 
 interface TimingTowerProps {
   drivers: Record<string, DriverTiming>;
@@ -8,6 +9,7 @@ interface TimingTowerProps {
   timingStats: Record<string, TimingStatsInfo>;
   selectedDrivers: number[];
   onToggleDriver: (driverNumber: number) => void;
+  battleRadar: Record<string, BattleRadarAlert>;
 }
 
 function latestCompound(info: TimingAppDataInfo | undefined): string {
@@ -33,6 +35,7 @@ const TimingTower: React.FC<TimingTowerProps> = ({
   timingStats,
   selectedDrivers,
   onToggleDriver,
+  battleRadar,
 }) => {
   const rows = Object.entries(drivers)
     .map(([driverStr, timing]) => ({ driverNumber: Number(driverStr), timing }))
@@ -65,6 +68,9 @@ const TimingTower: React.FC<TimingTowerProps> = ({
             <span className="team-bar" style={{ background: roster.teamColor }} />
             <span className="drv">{roster.tla}</span>
             <span className="gap mono">{timing.GapToLeader ?? "-"}</span>
+            <span className="battle-radar-slot">
+              <BattleRadarIndicator alert={battleRadar[String(driverNumber)]} />
+            </span>
             <span className={`lap mono ${lapTimeClass(timing.LastLapTime)}`}>{timing.LastLapTime?.Value ?? "-"}</span>
             <span className={`tyre-chip ${compound}`}>{compound !== "unknown" ? compound[0].toUpperCase() : "?"}</span>
             <span className="speed-trap mono">{speedTrap ?? "-"}</span>

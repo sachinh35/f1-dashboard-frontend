@@ -109,6 +109,22 @@ export interface PositionSample {
   status: string;
 }
 
+export interface BattleRadarLapGap {
+  lap_number: number;
+  gap_seconds: number;
+}
+
+/** Mirrors SessionState.battle_radar entries (utils/session_state.py). Only ever present
+ * for a driver who is both within threshold AND confirmed closing over >=2 laps - see
+ * _update_battle_radar's trend check on the backend. */
+export interface BattleRadarAlert {
+  driver_number: number;
+  ahead_driver_number: number | null;
+  gap_seconds: number;
+  alert_level: "battle" | "upcoming";
+  lap_history: BattleRadarLapGap[];
+}
+
 export interface CompletedLapWire {
   driver_number: number;
   lap_number: number;
@@ -192,4 +208,5 @@ export interface RaceModeSnapshot {
   extrapolated_clock: ExtrapolatedClockData;
   race_control_messages: Record<string, RaceControlEntry>;
   driver_roster: Record<string, DriverRosterWireEntry>;
+  battle_radar: Record<string, BattleRadarAlert>;
 }

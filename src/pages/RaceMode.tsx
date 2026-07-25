@@ -13,6 +13,7 @@ import type { DriverRosterWireEntry } from "../data/driverRoster";
 import { connectRaceModeStream } from "../services/sse";
 import "../styles/raceMode.css";
 import {
+  BattleRadarAlert,
   DriverListInfo,
   DriverTiming,
   ExtrapolatedClockData,
@@ -47,6 +48,7 @@ interface SlowState {
   lapCount: LapCountData;
   extrapolatedClock: ExtrapolatedClockData;
   raceControlMessages: Record<string, RaceControlEntry>;
+  battleRadar: Record<string, BattleRadarAlert>;
 }
 
 const INITIAL_STATE: SlowState = {
@@ -62,6 +64,7 @@ const INITIAL_STATE: SlowState = {
   lapCount: {},
   extrapolatedClock: {},
   raceControlMessages: {},
+  battleRadar: {},
 };
 
 const RaceMode: React.FC = () => {
@@ -105,6 +108,7 @@ const RaceMode: React.FC = () => {
           lapCount: snapshot.lap_count,
           extrapolatedClock: snapshot.extrapolated_clock,
           raceControlMessages: snapshot.race_control_messages,
+          battleRadar: snapshot.battle_radar ?? {},
         });
         if (snapshot.driver_roster) applyRosterWire(snapshot.driver_roster);
       },
@@ -114,6 +118,17 @@ const RaceMode: React.FC = () => {
       TimingData: (data) => {
         if (data.drivers) {
           setState((prev) => ({ ...prev, drivers: { ...prev.drivers, ...data.drivers } }));
+        }
+        if (data.battle_radar) {
+          const updates = data.battle_radar;
+          setState((prev) => {
+            const battleRadar = { ...prev.battleRadar };
+            for (const [driverStr, alert] of Object.entries(updates)) {
+              if (alert) battleRadar[driverStr] = alert;
+              else delete battleRadar[driverStr];
+            }
+            return { ...prev, battleRadar };
+          });
         }
       },
       DriverList: (data) => {
@@ -226,6 +241,7 @@ const RaceMode: React.FC = () => {
             drivers={state.drivers}
             timingAppData={state.timingAppData}
             timingStats={state.timingStats}
+            battleRadar={state.battleRadar}
             selectedDrivers={selectedDrivers}
             onToggleDriver={toggleDriver}
           />

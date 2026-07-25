@@ -131,7 +131,7 @@
 /* ---- timing tower ---- */
 .tower-row {
   display: grid;
-  grid-template-columns: 24px 30px 1fr 60px 60px 66px 40px 40px;
+  grid-template-columns: 24px 30px 1fr 60px 22px 60px 66px 40px 40px;
   align-items: center;
   gap: 8px;
   padding: 6px 4px;
@@ -230,6 +230,67 @@
   color: var(--text-lo);
 }
 
+/* ---- battle radar ---- */
+.battle-radar-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+}
+.battle-radar-badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  font-size: 11px;
+  line-height: 1;
+  border-radius: 4px;
+  cursor: default;
+  outline: none;
+}
+.battle-radar-badge.battle-radar-battle {
+  color: var(--flag-red);
+  background: rgba(230, 71, 63, 0.16);
+}
+.battle-radar-badge.battle-radar-upcoming {
+  color: var(--amber);
+  background: var(--amber-soft);
+}
+.battle-radar-badge:focus-visible {
+  box-shadow: 0 0 0 2px var(--teal);
+}
+.battle-radar-popover {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 20;
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  background: var(--panel-900);
+  border: 1px solid var(--line-800);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  cursor: default;
+  white-space: nowrap;
+}
+.battle-radar-popover-head {
+  font-size: 11px;
+  color: var(--text-lo);
+  font-weight: 600;
+}
+.battle-radar-popover-gap {
+  font-family: ui-monospace, monospace;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-hi);
+}
+
 /* ---- track map ---- */
 .rm-trackmap-canvas {
   width: 100%;
@@ -241,7 +302,7 @@
 /* ---- telemetry lab ---- */
 .rm-telemetry-canvas {
   width: 100%;
-  height: 180px;
+  height: 240px;
   display: block;
 }
 .rm-telemetry-legend {

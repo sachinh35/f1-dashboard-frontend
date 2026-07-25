@@ -9,6 +9,7 @@
  */
 import type { DriverRosterWireEntry } from "../data/driverRoster";
 import {
+  BattleRadarAlert,
   CompletedLapWire,
   DriverListInfo,
   DriverTiming,
@@ -29,7 +30,12 @@ import {
 
 export interface RaceModeEventMap {
   snapshot: RaceModeSnapshot;
-  TimingData: { drivers?: Record<string, DriverTiming>; completed_laps?: CompletedLapWire[] };
+  TimingData: {
+    drivers?: Record<string, DriverTiming>;
+    completed_laps?: CompletedLapWire[];
+    // null for a driver means their previously-active alert just cleared - see diff_to_wire.
+    battle_radar?: Record<string, BattleRadarAlert | null>;
+  };
   DriverList: { driver_list?: Record<string, DriverListInfo> };
   TimingAppData: { timing_app_data?: Record<string, TimingAppDataInfo> };
   TimingStats: { timing_stats?: Record<string, TimingStatsInfo> };
