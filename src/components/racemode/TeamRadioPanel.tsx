@@ -1,12 +1,9 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React from "react";
 import { getRosterEntry } from "../../data/driverRoster";
-import { getTeamRadioForSession } from "../../services/api";
 import { TeamRadioClip } from "../../types/raceMode";
 
 interface TeamRadioPanelProps {
-  sessionKey: number | null;
-  /** Bumped by the parent whenever a RADIO_CLIP_READY/RADIO_TRANSCRIPT_READY SSE event arrives, to trigger a refetch. */
-  refreshSignal: number;
+  clips: TeamRadioClip[];
 }
 
 const AUDIO_BASE_URL = "http://localhost:8000/audio";
@@ -30,23 +27,16 @@ function formatStatus(status: TeamRadioClip["status"]): string {
   }
 }
 
-const TeamRadioPanel: React.FC<TeamRadioPanelProps> = ({ sessionKey, refreshSignal }) => {
-  const [clips, setClips] = useState<TeamRadioClip[]>([]);
+/** Chat alignment bucket. "unclear" and not-yet-analyzed (null, before Gemini analysis has run)
+ * both fall back to the centered/neutral layout - we shouldn't guess a side for something the
+ * classifier itself wasn't sure about, or for a clip that hasn't been classified yet. */
+function alignmentClass(speakerRole: TeamRadioClip["speaker_role"]): string {
+  if (speakerRole === "pit_wall") return "radio-msg-pit_wall";
+  if (speakerRole === "driver") return "radio-msg-driver";
+  return "radio-msg-unclear";
+}
 
-  const refresh = useCallback(async () => {
-    if (sessionKey == null) return;
-    try {
-      const data = await getTeamRadioForSession(sessionKey);
-      setClips(data);
-    } catch (err) {
-      console.error("Failed to fetch team radio", err);
-    }
-  }, [sessionKey]);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh, refreshSignal]);
-
+const TeamRadioPanel: React.FC<TeamRadioPanelProps> = ({ clips }) => {
   const sorted = [...clips].sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime());
 
   if (sorted.length === 0) {
@@ -54,13 +44,21 @@ const TeamRadioPanel: React.FC<TeamRadioPanelProps> = ({ sessionKey, refreshSign
   }
 
   return (
-    <div>
+    <div className="radio-chat">
       {sorted.map((clip) => {
         const roster = getRosterEntry(clip.driver_number);
-        const playable = Boolean(clip.audio_path) && clip.status !== "pending" && clip.status !== "downloading" && clip.status !== "failed_download";
+        const playable =
+          Boolean(clip.audio_path) &&
+          clip.status !== "pending" &&
+          clip.status !== "downloading" &&
+          clip.status !== "failed_download";
+        const notable = clip.is_notable === true;
 
         return (
-          <div key={clip.id} className="radio-item">
+          <div
+            key={clip.id}
+            className={`radio-msg ${alignmentClass(clip.speaker_role)}${notable ? " radio-msg-notable" : ""}`}
+          >
             <div className="radio-item-head">
               <button
                 className="radio-play-btn"
@@ -77,6 +75,7 @@ const TeamRadioPanel: React.FC<TeamRadioPanelProps> = ({ sessionKey, refreshSign
                 {roster.tla}
               </span>
               {clip.lap_number != null && <span className="radio-lap">LAP {clip.lap_number}</span>}
+              {notable && <span className="radio-notable-tag">● Notable</span>}
             </div>
             {clip.transcript ? (
               <div className="radio-transcript">&ldquo;{clip.transcript}&rdquo;</div>

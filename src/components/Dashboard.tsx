@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getYears, getRacesForYear, getSessionResults, getSessionLapData, getSessionStints, getSessionRaceControlEvents, LapData, Stint, RaceControlEvent, startLiveStream, startSimulation, ConfirmedRosterEntry } from '../services/api';
+import { getYears, getRacesForYear, getSessionResults, getSessionLapData, getSessionStints, getSessionRaceControlEvents, LapData, Stint, RaceControlEvent, startLiveStream, startSimulation, attachLiveStream, ConfirmedRosterEntry } from '../services/api';
 import {
     Box,
     Grid,
@@ -74,7 +74,7 @@ const Dashboard = () => {
     const [streamingLoading, setStreamingLoading] = useState(false);
     const [streamMessage, setStreamMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
     const [rosterDialogOpen, setRosterDialogOpen] = useState(false);
-    const [rosterDialogAction, setRosterDialogAction] = useState<'live' | 'simulate' | null>(null);
+    const [rosterDialogAction, setRosterDialogAction] = useState<'live' | 'simulate' | 'attach' | null>(null);
 
     const navigate = useNavigate();
 
@@ -93,6 +93,11 @@ const Dashboard = () => {
 
     const handleStartSimulation = () => {
         setRosterDialogAction('simulate');
+        setRosterDialogOpen(true);
+    };
+
+    const handleAttachLiveStream = () => {
+        setRosterDialogAction('attach');
         setRosterDialogOpen(true);
     };
 
@@ -157,6 +162,43 @@ const Dashboard = () => {
                     type: 'error',
                     text: 'Failed to start simulation'
                 });
+            } finally {
+                setStreamingLoading(false);
+            }
+        } else if (action === 'attach') {
+            try {
+                setStreamingLoading(true);
+                setStreamMessage(null);
+
+                // Attaches to the standalone capture process (scripts/capture_stream.py) by
+                // tailing its raw jsonl file, instead of opening a second SignalR connection -
+                // the capture keeps running independent of this backend/frontend, so this is
+                // safe to call again any time (after a backend restart, a page reload, etc.)
+                // and it just catches straight back up.
+                const response = await attachLiveStream(undefined, confirmedRoster);
+
+                setStreaming(true);
+                setStreamMessage({
+                    type: 'success',
+                    text: `Attached to live capture! Stream ID: ${response.stream_id}. Log file: ${response.log_file}`
+                });
+
+                navigate(`/live-stream/${response.stream_id}`);
+
+            } catch (error: any) {
+                console.error('Error attaching to live capture:', error);
+                let errorMessage = 'Failed to attach to live capture.';
+
+                if (error.response?.status === 404) {
+                    errorMessage = 'No live capture found. Start it from a terminal first: ./scripts/run_capture.sh <session-name>';
+                } else if (error.response?.data?.detail) {
+                    errorMessage = error.response.data.detail;
+                } else if (error.message) {
+                    errorMessage = error.message;
+                }
+
+                setStreamMessage({ type: 'error', text: errorMessage });
+                setStreaming(false);
             } finally {
                 setStreamingLoading(false);
             }
@@ -416,6 +458,23 @@ const Dashboard = () => {
                         }}
                     >
                         Test Simulation
+                    </Button>
+                    <Button
+                        variant="outlined"
+                        color="primary"
+                        onClick={handleAttachLiveStream}
+                        disabled={streamingLoading || streaming}
+                        sx={{
+                            px: 3,
+                            py: 1.5,
+                            borderRadius: 2,
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            ml: 2
+                        }}
+                        title="Attach to a standalone capture process already running via scripts/run_capture.sh - the recommended way to watch a real live session"
+                    >
+                        Attach to Live Capture
                     </Button>
                 </Stack>
                 <Typography variant="body1" sx={{ color: 'text.secondary', ml: 6 }}>

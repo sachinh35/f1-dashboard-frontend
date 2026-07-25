@@ -4,6 +4,11 @@ import { ExtrapolatedClockData, LapCountData } from "../../types/raceMode";
 interface SessionClockProps {
   lapCount: LapCountData;
   extrapolatedClock: ExtrapolatedClockData;
+  /** Qualifying has no lap count worth showing (F1 never sends LapCount for it - laps
+   * exist but "lap N of total" is a race-only framing), and time-remaining is scoped to
+   * the current segment rather than the whole session - see qualifyingPart. */
+  isQualifying: boolean;
+  qualifyingPart: string | null;
 }
 
 /** Parse F1's "H:MM:SS" (or "MM:SS") remaining-time string into total seconds. */
@@ -30,8 +35,16 @@ function formatHms(totalSeconds: number): string {
  * between updates, not wait for the server to send fresh values. This
  * anchors on each new value received and ticks it down with a local
  * interval, re-anchoring whenever a fresher value arrives.
+ *
+ * The anchor time is F1's own `Utc` timestamp for that Remaining value, not the moment
+ * this component happened to receive/render it - using Date.now() as the anchor was a
+ * real bug: a page refresh (or SSE reconnect) re-delivers the same last-known Remaining
+ * value via the snapshot, and anchoring to "now" made the countdown restart from that
+ * stale number instead of continuing from the true current remaining time. Confirmed live
+ * (e.g. Remaining="00:12:59" as of Utc=14:47:01 was still being shown as ~12:59 minutes
+ * later on refresh, instead of counting down to ~06:59).
  */
-const SessionClock: React.FC<SessionClockProps> = ({ lapCount, extrapolatedClock }) => {
+const SessionClock: React.FC<SessionClockProps> = ({ lapCount, extrapolatedClock, isQualifying, qualifyingPart }) => {
   const [displayedRemaining, setDisplayedRemaining] = useState<string>("--:--:--");
   const anchorRef = useRef<{ seconds: number; receivedAtMs: number } | null>(null);
 
@@ -39,9 +52,11 @@ const SessionClock: React.FC<SessionClockProps> = ({ lapCount, extrapolatedClock
     if (!extrapolatedClock.Remaining) return;
     const seconds = parseHms(extrapolatedClock.Remaining);
     if (seconds == null) return;
-    anchorRef.current = { seconds, receivedAtMs: Date.now() };
-    setDisplayedRemaining(formatHms(seconds));
-  }, [extrapolatedClock.Remaining]);
+    const utcMs = extrapolatedClock.Utc ? Date.parse(extrapolatedClock.Utc) : NaN;
+    const receivedAtMs = Number.isNaN(utcMs) ? Date.now() : utcMs;
+    anchorRef.current = { seconds, receivedAtMs };
+    setDisplayedRemaining(formatHms(seconds - (Date.now() - receivedAtMs) / 1000));
+  }, [extrapolatedClock.Remaining, extrapolatedClock.Utc]);
 
   useEffect(() => {
     if (!extrapolatedClock.Extrapolating) return;
@@ -56,16 +71,23 @@ const SessionClock: React.FC<SessionClockProps> = ({ lapCount, extrapolatedClock
 
   return (
     <div className="rm-clock">
-      <div>
-        <div className="big mono">
-          {lapCount.CurrentLap ?? "-"}
-          {lapCount.TotalLaps ? ` / ${lapCount.TotalLaps}` : ""}
+      {isQualifying ? (
+        <div>
+          <div className="big mono qualifying-part">{qualifyingPart ?? "Q?"}</div>
+          <div className="lbl">Session</div>
         </div>
-        <div className="lbl">Lap</div>
-      </div>
+      ) : (
+        <div>
+          <div className="big mono">
+            {lapCount.CurrentLap ?? "-"}
+            {lapCount.TotalLaps ? ` / ${lapCount.TotalLaps}` : ""}
+          </div>
+          <div className="lbl">Lap</div>
+        </div>
+      )}
       <div>
         <div className="big mono">{displayedRemaining}</div>
-        <div className="lbl">Remaining</div>
+        <div className="lbl">{isQualifying ? `Time Remaining${qualifyingPart ? ` (${qualifyingPart})` : ""}` : "Remaining"}</div>
       </div>
     </div>
   );

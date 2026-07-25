@@ -145,6 +145,46 @@ export const startLiveStream = async (
     return response.data;
 };
 
+export interface AttachStreamRequest {
+    session_name?: string;
+    confirmed_roster?: ConfirmedRosterEntry[];
+}
+
+export interface CurrentLiveStreamResponse {
+    session_name: string;
+    stream_id: string;
+    log_file: string;
+}
+
+/**
+ * Attach the backend to an in-progress standalone capture process
+ * (scripts/capture_stream.py) by tailing its raw jsonl file, instead of opening a
+ * second, backend-owned SignalR connection. This is the intended way to watch a
+ * session the standalone capture is already recording - the capture keeps running
+ * independent of the backend/frontend, so a backend restart just re-attaches and
+ * catches straight back up.
+ */
+export const attachLiveStream = async (
+    sessionName?: string,
+    confirmedRoster?: ConfirmedRosterEntry[]
+): Promise<StartStreamResponse> => {
+    const response = await axios.post<StartStreamResponse>(
+        `${API_BASE_URL}/attach-live-stream`,
+        {
+            session_name: sessionName,
+            confirmed_roster: confirmedRoster
+        } as AttachStreamRequest
+    );
+    return response.data;
+};
+
+/** Discover the currently-active standalone capture, if any - lets the UI find and
+ * (re)connect to it without hardcoding a session name. */
+export const getCurrentLiveStream = async (): Promise<CurrentLiveStreamResponse> => {
+    const response = await axios.get<CurrentLiveStreamResponse>(`${API_BASE_URL}/live-stream/current`);
+    return response.data;
+};
+
 export interface SimulateStreamRequest {
     log_file?: string;
     speed_factor?: number;

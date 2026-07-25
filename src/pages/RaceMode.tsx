@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import LapDeltaChart from "../components/racemode/LapDeltaChart";
+import NotableRadioWidget from "../components/racemode/NotableRadioWidget";
 import RaceControlFeed from "../components/racemode/RaceControlFeed";
 import SessionClock from "../components/racemode/SessionClock";
 import TeamRadioPanel from "../components/racemode/TeamRadioPanel";
@@ -10,6 +11,7 @@ import TrackMap from "../components/racemode/TrackMap";
 import TrackStatusBanner from "../components/racemode/TrackStatusBanner";
 import { clearLiveRoster, rosterEntryFromWire, setLiveRoster } from "../data/driverRoster";
 import type { DriverRosterWireEntry } from "../data/driverRoster";
+import { getTeamRadioForSession } from "../services/api";
 import { connectRaceModeStream } from "../services/sse";
 import "../styles/raceMode.css";
 import {
@@ -21,6 +23,7 @@ import {
   PositionSample,
   RaceControlEntry,
   SessionInfoData,
+  TeamRadioClip,
   TelemetrySample,
   TimingAppDataInfo,
   TimingStatsInfo,
@@ -49,6 +52,9 @@ interface SlowState {
   extrapolatedClock: ExtrapolatedClockData;
   raceControlMessages: Record<string, RaceControlEntry>;
   battleRadar: Record<string, BattleRadarAlert>;
+  qualifyingPart: string | null;
+  eliminatedDrivers: number[];
+  qualifyingGaps: Record<string, number>;
 }
 
 const INITIAL_STATE: SlowState = {
@@ -65,6 +71,9 @@ const INITIAL_STATE: SlowState = {
   extrapolatedClock: {},
   raceControlMessages: {},
   battleRadar: {},
+  qualifyingPart: null,
+  eliminatedDrivers: [],
+  qualifyingGaps: {},
 };
 
 const RaceMode: React.FC = () => {
@@ -72,7 +81,15 @@ const RaceMode: React.FC = () => {
   const [state, setState] = useState<SlowState>(INITIAL_STATE);
   const [selectedDrivers, setSelectedDrivers] = useState<number[]>([]);
   const [radioRefreshSignal, setRadioRefreshSignal] = useState(0);
+  const [teamRadioClips, setTeamRadioClips] = useState<TeamRadioClip[]>([]);
   const [connected, setConnected] = useState(false);
+  // Whether any Position.z/CarData.z has actually been received this session - gates the
+  // Track Map / Telemetry Compare / Lap Delta widgets. Not assumed from session type: F1
+  // sometimes doesn't send these topics at all for a given live connection (confirmed
+  // against a real session, quali and race captures both had them historically), so this
+  // self-heals whenever that's resolved rather than hardcoding it off for qualifying.
+  const [hasPositionData, setHasPositionData] = useState(false);
+  const [hasTelemetryData, setHasTelemetryData] = useState(false);
 
   // High-frequency telemetry/position bypass React state entirely - Canvas
   // components read these refs directly every animation frame instead.
@@ -91,7 +108,10 @@ const RaceMode: React.FC = () => {
     positionsRef.current = {};
     trailRef.current = {};
     clearLiveRoster();
+    setTeamRadioClips([]);
     setConnected(true);
+    setHasPositionData(false);
+    setHasTelemetryData(false);
 
     const disconnect = connectRaceModeStream(streamId, {
       snapshot: (snapshot) => {
@@ -109,6 +129,9 @@ const RaceMode: React.FC = () => {
           extrapolatedClock: snapshot.extrapolated_clock,
           raceControlMessages: snapshot.race_control_messages,
           battleRadar: snapshot.battle_radar ?? {},
+          qualifyingPart: snapshot.qualifying_part,
+          eliminatedDrivers: snapshot.eliminated_drivers ?? [],
+          qualifyingGaps: snapshot.qualifying_gaps ?? {},
         });
         if (snapshot.driver_roster) applyRosterWire(snapshot.driver_roster);
       },
@@ -118,6 +141,12 @@ const RaceMode: React.FC = () => {
       TimingData: (data) => {
         if (data.drivers) {
           setState((prev) => ({ ...prev, drivers: { ...prev.drivers, ...data.drivers } }));
+        }
+        if (data.qualifying_gaps) {
+          // Full table every time (see sse.ts) - a straight replace, not a merge, so a
+          // driver who lost their only valid lap (deleted) correctly drops out instead of
+          // keeping a stale entry.
+          setState((prev) => ({ ...prev, qualifyingGaps: data.qualifying_gaps! }));
         }
         if (data.battle_radar) {
           const updates = data.battle_radar;
@@ -158,13 +187,22 @@ const RaceMode: React.FC = () => {
         if (data.weather) setState((prev) => ({ ...prev, weather: data.weather! }));
       },
       SessionInfo: (data) => {
-        if (data.session_info) {
-          setState((prev) => ({
-            ...prev,
-            sessionInfo: data.session_info!,
-            sessionKey: data.session_info!.Key ?? prev.sessionKey,
-          }));
-        }
+        setState((prev) => ({
+          ...prev,
+          sessionInfo: data.session_info ?? prev.sessionInfo,
+          sessionKey: data.session_info?.Key ?? prev.sessionKey,
+          // qualifying_part can default to "Q1" right here (F1 never announces Q1
+          // explicitly) - see sse.ts/SessionState._apply_session_info.
+          qualifyingPart: data.qualifying_part !== undefined ? data.qualifying_part ?? null : prev.qualifyingPart,
+          eliminatedDrivers: data.eliminated_drivers ?? prev.eliminatedDrivers,
+        }));
+      },
+      SessionData: (data) => {
+        setState((prev) => ({
+          ...prev,
+          qualifyingPart: data.qualifying_part !== undefined ? data.qualifying_part ?? null : prev.qualifyingPart,
+          eliminatedDrivers: data.eliminated_drivers ?? prev.eliminatedDrivers,
+        }));
       },
       LapCount: (data) => {
         if (data.lap_count) setState((prev) => ({ ...prev, lapCount: data.lap_count! }));
@@ -183,6 +221,7 @@ const RaceMode: React.FC = () => {
       "CarData.z": (data) => {
         if (data.telemetry) {
           telemetryRef.current = { ...telemetryRef.current, ...data.telemetry };
+          setHasTelemetryData(true);
         }
       },
       "Position.z": (data) => {
@@ -193,10 +232,12 @@ const RaceMode: React.FC = () => {
             trail.push({ x: pos.x, y: pos.y });
             if (trail.length > MAX_TRAIL_POINTS_PER_DRIVER) trail.shift();
           }
+          setHasPositionData(true);
         }
       },
       RADIO_CLIP_READY: () => setRadioRefreshSignal((n) => n + 1),
       RADIO_TRANSCRIPT_READY: () => setRadioRefreshSignal((n) => n + 1),
+      RADIO_ANALYSIS_READY: () => setRadioRefreshSignal((n) => n + 1),
     });
 
     return () => {
@@ -204,6 +245,23 @@ const RaceMode: React.FC = () => {
       setConnected(false);
     };
   }, [streamId]);
+
+  // Lifted up (rather than fetched privately inside TeamRadioPanel, as it originally was)
+  // so TimingTower's per-row radio indicator and NotableRadioWidget can share the exact
+  // same data instead of each running their own fetch against the same endpoint.
+  const sessionKey = state.sessionKey;
+  const refetchTeamRadio = useCallback(async () => {
+    if (sessionKey == null) return;
+    try {
+      setTeamRadioClips(await getTeamRadioForSession(sessionKey));
+    } catch (err) {
+      console.error("Failed to fetch team radio", err);
+    }
+  }, [sessionKey]);
+
+  useEffect(() => {
+    refetchTeamRadio();
+  }, [refetchTeamRadio, radioRefreshSignal]);
 
   const toggleDriver = (driverNumber: number) => {
     setSelectedDrivers((prev) => {
@@ -214,6 +272,8 @@ const RaceMode: React.FC = () => {
   };
 
   const meetingName = state.sessionInfo.Meeting?.Name;
+  const sessionType = state.sessionInfo.Type;
+  const isQualifying = sessionType === "Qualifying";
 
   return (
     <div className="race-mode">
@@ -221,6 +281,11 @@ const RaceMode: React.FC = () => {
         <h1>
           <span className="display">Race Mode</span>
           {connected && <span className="rm-live-pill">LIVE</span>}
+          {isQualifying && (
+            <span className="rm-session-pill qualifying">
+              QUALIFYING{state.qualifyingPart ? ` – ${state.qualifyingPart}` : ""}
+            </span>
+          )}
           {meetingName && (
             <span style={{ color: "var(--text-lo)", fontSize: 15, fontWeight: 400 }}>{meetingName}</span>
           )}
@@ -235,42 +300,62 @@ const RaceMode: React.FC = () => {
           <div className="rm-panel-label">
             <span>Timing Tower</span>
           </div>
-          <SessionClock lapCount={state.lapCount} extrapolatedClock={state.extrapolatedClock} />
+          <SessionClock
+            lapCount={state.lapCount}
+            extrapolatedClock={state.extrapolatedClock}
+            isQualifying={isQualifying}
+            qualifyingPart={state.qualifyingPart}
+          />
           <div style={{ height: 14 }} />
           <TimingTower
             drivers={state.drivers}
             timingAppData={state.timingAppData}
             timingStats={state.timingStats}
             battleRadar={state.battleRadar}
+            teamRadioClips={teamRadioClips}
             selectedDrivers={selectedDrivers}
             onToggleDriver={toggleDriver}
+            isQualifying={isQualifying}
+            eliminatedDrivers={state.eliminatedDrivers}
+            qualifyingGaps={state.qualifyingGaps}
           />
         </div>
 
-        <div className="rm-panel">
-          <div className="rm-panel-label">Track Map</div>
-          <TrackMap positionsRef={positionsRef} trailRef={trailRef} selectedDrivers={selectedDrivers} />
-        </div>
+        {hasPositionData && (
+          <div className="rm-panel">
+            <div className="rm-panel-label">Track Map</div>
+            <TrackMap positionsRef={positionsRef} trailRef={trailRef} selectedDrivers={selectedDrivers} />
+          </div>
+        )}
 
         <div className="rm-panel">
           <div className="rm-panel-label">Track Status &amp; Weather</div>
           <TrackStatusBanner trackStatus={state.trackStatus} weather={state.weather} />
         </div>
 
-        <div className="rm-panel">
-          <div className="rm-panel-label">Telemetry Compare</div>
-          <TelemetryLab telemetryRef={telemetryRef} selectedDrivers={selectedDrivers} />
-        </div>
+        {hasTelemetryData && (
+          <div className="rm-panel">
+            <div className="rm-panel-label">Telemetry Compare</div>
+            <TelemetryLab telemetryRef={telemetryRef} selectedDrivers={selectedDrivers} />
+          </div>
+        )}
 
         <div className="rm-panel">
           <div className="rm-panel-label">Team Radio</div>
-          <TeamRadioPanel sessionKey={state.sessionKey} refreshSignal={radioRefreshSignal} />
+          <TeamRadioPanel clips={teamRadioClips} />
         </div>
 
-        <div className="rm-panel rm-span-2">
-          <div className="rm-panel-label">Lap Delta &amp; Corner Analysis</div>
-          <LapDeltaChart sessionKey={state.sessionKey} selectedDrivers={selectedDrivers} drivers={state.drivers} />
+        <div className="rm-panel">
+          <div className="rm-panel-label">Notable Radio</div>
+          <NotableRadioWidget clips={teamRadioClips} />
         </div>
+
+        {hasTelemetryData && hasPositionData && (
+          <div className="rm-panel rm-span-2">
+            <div className="rm-panel-label">Lap Delta &amp; Corner Analysis</div>
+            <LapDeltaChart sessionKey={state.sessionKey} selectedDrivers={selectedDrivers} drivers={state.drivers} />
+          </div>
+        )}
 
         <div className="rm-panel rm-span-2">
           <div className="rm-panel-label">Race Control</div>

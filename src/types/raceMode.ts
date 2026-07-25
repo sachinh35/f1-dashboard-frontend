@@ -13,10 +13,17 @@ export interface DriverTiming {
   Position?: string;
   GapToLeader?: string;
   IntervalToPositionAhead?: { Value?: string };
+  /** Race-only fields (GapToLeader/IntervalToPositionAhead) are never sent during
+   * qualifying (confirmed live: 0 occurrences over a full session) - Stats["0"].TimeDiffToFastest
+   * is the qualifying-relevant gap instead (gap to the session's fastest lap so far). */
+  Stats?: Record<string, { TimeDiffToFastest?: string; TimeDifftoPositionAhead?: string }>;
   NumberOfLaps?: number;
   LastLapTime?: { Value?: string; OverallFastest?: boolean; PersonalFastest?: boolean };
   BestLapTime?: { Value?: string; Lap?: number };
-  Sectors?: Record<string, { Value?: string; Segments?: Record<string, { Status?: number }> }>;
+  Sectors?: Record<
+    string,
+    { Value?: string; OverallFastest?: boolean; PersonalFastest?: boolean; Segments?: Record<string, { Status?: number }> }
+  >;
   Speeds?: Record<string, { Value?: string; OverallFastest?: boolean; PersonalFastest?: boolean }>;
   InPit?: boolean;
   PitOut?: boolean;
@@ -80,6 +87,12 @@ export interface LapCountData {
 export interface ExtrapolatedClockData {
   Remaining?: string;
   Extrapolating?: boolean;
+  /** When F1 captured this Remaining value (ISO 8601, UTC) - the anchor for local
+   * countdown ticking must use this, not the moment the browser received/rendered it,
+   * or a page refresh (which re-delivers this same last-known value via the SSE
+   * snapshot) would restart the countdown from a stale number instead of the true
+   * current remaining time - see SessionClock.tsx. */
+  Utc?: string;
 }
 
 export interface RaceControlEntry {
@@ -150,6 +163,8 @@ export type RadioClipStatus =
   | "failed_download"
   | "failed_transcription";
 
+export type RadioSpeakerRole = "driver" | "pit_wall" | "unclear";
+
 export interface TeamRadioClip {
   id: number;
   session_key: number;
@@ -161,6 +176,11 @@ export interface TeamRadioClip {
   status: RadioClipStatus;
   error: string | null;
   transcribed_at: string | null;
+  /** Gemini-classified, null until analysis completes - speaker_role is an LLM inference
+   * over the transcript text, not ground truth (F1's raw feed carries no speaker info). */
+  speaker_role: RadioSpeakerRole | null;
+  is_notable: boolean | null;
+  notable_reason: string | null;
 }
 
 export interface LapTraceData {
@@ -209,4 +229,14 @@ export interface RaceModeSnapshot {
   race_control_messages: Record<string, RaceControlEntry>;
   driver_roster: Record<string, DriverRosterWireEntry>;
   battle_radar: Record<string, BattleRadarAlert>;
+  /** "Q1"/"Q2"/"Q3" for a qualifying session, null otherwise or before the first
+   * segment is known - see SessionState.qualifying_part (utils/session_state.py). */
+  qualifying_part: string | null;
+  /** Driver numbers knocked out at the end of a previous qualifying segment - permanent
+   * for the rest of the session once added. See SessionState.eliminated_drivers. */
+  eliminated_drivers: number[];
+  /** Gap to the session-best lap this qualifying part, in seconds (0 for the leader) -
+   * computed backend-side from BestLapTime, never from F1's own Stats field (unreliable -
+   * see SessionState._recompute_qualifying_gaps). Absent key = no valid lap yet. */
+  qualifying_gaps: Record<string, number>;
 }

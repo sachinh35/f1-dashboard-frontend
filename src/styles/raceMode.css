@@ -80,6 +80,19 @@
   content: "\25CF ";
 }
 
+.rm-session-pill {
+  font-family: "DIN Condensed", "Arial Narrow", sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+.rm-session-pill.qualifying {
+  color: var(--flag-yellow);
+  border: 1px solid #4a3f12;
+  background: #2a2410;
+}
+
 .rm-back-link {
   color: var(--text-lo);
   text-decoration: none;
@@ -131,7 +144,7 @@
 /* ---- timing tower ---- */
 .tower-row {
   display: grid;
-  grid-template-columns: 24px 30px 1fr 60px 22px 60px 66px 40px 40px;
+  grid-template-columns: 24px 30px 1fr 60px 22px 20px 60px 66px 40px 40px;
   align-items: center;
   gap: 8px;
   padding: 6px 4px;
@@ -139,8 +152,42 @@
   border-bottom: 1px solid var(--line-800);
   cursor: pointer;
 }
+.tower-row.qualifying {
+  grid-template-columns: 24px 30px 1fr 60px 22px 20px 66px 52px 52px 52px 76px 66px 32px;
+}
+.tower-row.tower-header {
+  cursor: default;
+  padding-bottom: 8px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  border-bottom: 1px solid var(--line-700, var(--line-800));
+}
+.tower-row.tower-header .gap,
+.tower-row.tower-header .speed-trap {
+  color: var(--text-faint);
+}
 .tower-row:last-child {
   border-bottom: none;
+}
+.tower-row.eliminated {
+  opacity: 0.45;
+}
+.tower-row.eliminated:hover {
+  opacity: 0.65;
+}
+.out-badge {
+  margin-left: 6px;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--flag-red);
+  border: 1px solid #4a2422;
+  background: #2a1412;
+  border-radius: 3px;
+  padding: 1px 4px;
+  vertical-align: middle;
 }
 .tower-row:hover {
   background: rgba(255, 255, 255, 0.03);
@@ -181,6 +228,77 @@
 }
 .tower-row .lap.plain {
   color: var(--text-hi);
+}
+.sector {
+  text-align: right;
+  color: var(--text-lo);
+}
+.sector.purple {
+  color: var(--flag-purple);
+}
+.sector.green {
+  color: var(--flag-green);
+}
+.sector.plain {
+  color: var(--text-lo);
+}
+.tyre-history {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+.tyre-chip-mini {
+  width: 15px;
+  height: 15px;
+  min-width: 15px;
+  border-radius: 50%;
+  font-size: 8.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "DIN Condensed", "Arial Narrow", sans-serif;
+  opacity: 0.55;
+}
+.tyre-chip-mini.current {
+  opacity: 1;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  font-size: 10px;
+}
+.tyre-chip-mini.soft {
+  background: #4a1418;
+  color: #ff6b6b;
+  border: 1px solid #6b1f24;
+}
+.tyre-chip-mini.medium {
+  background: #4a3a10;
+  color: #f2c94c;
+  border: 1px solid #6b5518;
+}
+.tyre-chip-mini.hard {
+  background: #2a2f38;
+  color: #e7ebf1;
+  border: 1px solid #3d4452;
+}
+.tyre-chip-mini.intermediate {
+  background: #123a1c;
+  color: #52e252;
+  border: 1px solid #1c5c2c;
+}
+.tyre-chip-mini.wet {
+  background: #0f2a4a;
+  color: #64c4ff;
+  border: 1px solid #1c4a7a;
+}
+.tyre-chip-mini.unknown {
+  background: #262f3d;
+  color: var(--text-faint);
+  border: 1px solid var(--line-800);
 }
 .tyre-chip {
   width: 20px;
@@ -289,6 +407,70 @@
   font-size: 15px;
   font-weight: 700;
   color: var(--text-hi);
+}
+
+/* ---- radio indicator (timing tower) ---- */
+.radio-indicator-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+}
+.radio-indicator-badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  font-size: 11px;
+  line-height: 1;
+  border-radius: 4px;
+  cursor: default;
+  outline: none;
+  color: var(--text-faint);
+  background: rgba(255, 255, 255, 0.04);
+}
+.radio-indicator-badge.radio-indicator-notable {
+  color: var(--flag-yellow);
+  background: rgba(232, 201, 58, 0.16);
+}
+.radio-indicator-badge:focus-visible {
+  box-shadow: 0 0 0 2px var(--teal);
+}
+.radio-indicator-popover {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 20;
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  background: var(--panel-900);
+  border: 1px solid var(--line-800);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  cursor: default;
+  white-space: normal;
+  width: 200px;
+}
+.radio-indicator-popover-lap {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-family: ui-monospace, monospace;
+}
+.radio-indicator-popover-transcript {
+  font-size: 12px;
+  color: var(--text-lo);
+  font-style: italic;
+}
+.radio-indicator-popover-reason {
+  font-size: 11px;
+  color: var(--flag-yellow);
+  font-weight: 600;
 }
 
 /* ---- track map ---- */
@@ -500,6 +682,90 @@
   font-size: 11px;
 }
 
+/* ---- team radio chat (TeamRadioPanel) ---- */
+.radio-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.radio-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 78%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--panel-850);
+  border: 1px solid var(--line-800);
+  font-size: 12.5px;
+}
+.radio-msg .radio-transcript,
+.radio-msg .radio-status {
+  padding-left: 0;
+}
+.radio-msg-pit_wall {
+  align-self: flex-start;
+  border-bottom-left-radius: 2px;
+}
+.radio-msg-driver {
+  align-self: flex-end;
+  border-bottom-right-radius: 2px;
+  background: var(--teal-soft);
+}
+.radio-msg-unclear {
+  align-self: center;
+  background: var(--panel-850);
+}
+.radio-msg-notable {
+  border-color: var(--flag-yellow);
+  box-shadow: 0 0 0 1px rgba(232, 201, 58, 0.35);
+}
+.radio-notable-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--flag-yellow);
+}
+
+/* ---- notable radio widget ---- */
+.notable-radio-list {
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.notable-radio-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line-800);
+  font-size: 12.5px;
+}
+.notable-radio-item:last-child {
+  border-bottom: none;
+}
+.notable-radio-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.notable-radio-item .radio-transcript {
+  padding-left: 0;
+}
+.notable-radio-reason {
+  color: var(--flag-yellow);
+  font-size: 11px;
+  font-weight: 600;
+  padding-left: 0;
+}
+
 /* ---- lap delta / corner comparison ---- */
 .lap-compare-controls {
   display: flex;
@@ -556,4 +822,7 @@
   color: var(--text-faint);
   text-transform: uppercase;
   letter-spacing: 0.06em;
+}
+.rm-clock .qualifying-part {
+  color: var(--flag-yellow);
 }

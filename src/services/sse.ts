@@ -35,6 +35,10 @@ export interface RaceModeEventMap {
     completed_laps?: CompletedLapWire[];
     // null for a driver means their previously-active alert just cleared - see diff_to_wire.
     battle_radar?: Record<string, BattleRadarAlert | null>;
+    // Full table (all drivers, not just this diff's changed ones) - see
+    // SessionState.qualifying_gaps / _recompute_qualifying_gaps. A driver with no valid
+    // best lap yet has no entry - never inferred as "not present == leader".
+    qualifying_gaps?: Record<string, number>;
   };
   DriverList: { driver_list?: Record<string, DriverListInfo> };
   TimingAppData: { timing_app_data?: Record<string, TimingAppDataInfo> };
@@ -42,7 +46,19 @@ export interface RaceModeEventMap {
   TopThree: { top_three?: Record<string, TopThreeInfo> };
   TrackStatus: { track_status?: TrackStatus };
   WeatherData: { weather?: Weather };
-  SessionInfo: { session_info?: SessionInfoData };
+  SessionInfo: {
+    session_info?: SessionInfoData;
+    // See SessionData's identical fields - also sent here because qualifying_part can
+    // default to "Q1" the moment SessionInfo reveals Type "Qualifying" (F1 never
+    // announces Q1 explicitly - see SessionState._apply_session_info).
+    qualifying_part?: string | null;
+    eliminated_drivers?: number[];
+  };
+  SessionData: {
+    session_data?: Record<string, unknown>;
+    qualifying_part?: string | null;
+    eliminated_drivers?: number[];
+  };
   LapCount: { lap_count?: LapCountData };
   ExtrapolatedClock: { extrapolated_clock?: ExtrapolatedClockData };
   RaceControlMessages: { race_control_messages?: Record<string, RaceControlEntry> };
@@ -52,6 +68,7 @@ export interface RaceModeEventMap {
   TeamRadio: { new_radio_captures?: NewRadioCaptureWire[] };
   RADIO_CLIP_READY: { row_id: number };
   RADIO_TRANSCRIPT_READY: { row_id: number };
+  RADIO_ANALYSIS_READY: { row_id: number };
 }
 
 export type RaceModeEventName = keyof RaceModeEventMap;
