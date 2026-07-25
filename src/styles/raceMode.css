@@ -119,6 +119,14 @@
   border: 1px solid var(--line-800);
   border-radius: 10px;
   padding: 14px 16px;
+  /* Column flex (not just a plain block) so a scrolling child (.radio-chat) can use
+   * flex:1 to fill whatever height the grid actually gives this panel - which varies:
+   * .rm-grid's row-spanning Timing Tower panel can force a sibling row much taller than
+   * its own content, and align-items:stretch (the grid default) stretches .rm-panel to
+   * match. A fixed max-height on the child scroll area doesn't track that, so the panel
+   * border visibly extends past where the scrollable content stops. */
+  display: flex;
+  flex-direction: column;
 }
 
 .rm-panel-label {
@@ -139,6 +147,25 @@
 
 .rm-span-2 {
   grid-column: 1 / -1;
+}
+
+/* Right-column panel stack (see RaceMode.tsx) - height is pinned via JS (ResizeObserver
+ * on the Timing Tower panel) to match it exactly; min-height:0 lets that explicit height
+ * actually constrain children instead of being overridden by their content size. */
+.rm-right-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  overflow: hidden;
+}
+/* The one rail panel that absorbs whatever height is left over after its natural-height
+ * siblings (Track Map/Track Status/Telemetry Compare), rather than growing past the rail -
+ * min-height:0 lets it shrink below its message list's full height so .radio-chat's
+ * overflow-y:auto actually activates instead of the panel just growing to fit everything. */
+.rm-panel-fill {
+  flex: 1;
+  min-height: 0;
 }
 
 /* ---- timing tower ---- */
@@ -447,7 +474,7 @@
   margin-top: 6px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
   padding: 8px 10px;
   background: var(--panel-900);
   border: 1px solid var(--line-800);
@@ -455,7 +482,51 @@
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
   cursor: default;
   white-space: normal;
-  width: 200px;
+  width: 220px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+/* One group per qualifying segment (Q1/Q2/Q3), most-recent segment first - outside
+ * qualifying every clip collapses into a single ungrouped (unlabeled) group. */
+.radio-indicator-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.radio-indicator-group + .radio-indicator-group {
+  border-top: 1px solid var(--line-800);
+  padding-top: 8px;
+}
+.radio-indicator-group-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--teal);
+  font-family: ui-monospace, monospace;
+}
+/* Every message in the group, newest first - notable ones get the same "square box"
+ * border treatment as TeamRadioPanel's .radio-msg-notable, never an explanatory reason
+ * text (F1 gives no ground-truth "why", it's an LLM inference - see radio_analysis.py). */
+.radio-indicator-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 0;
+}
+.radio-indicator-msg + .radio-indicator-msg {
+  border-top: 1px solid var(--line-800);
+  padding-top: 6px;
+}
+.radio-indicator-msg-notable {
+  border: 1px solid var(--flag-yellow);
+  box-shadow: 0 0 0 1px rgba(232, 201, 58, 0.35);
+  border-radius: 6px;
+  padding: 4px 6px;
+}
+.radio-indicator-msg-notable + .radio-indicator-msg {
+  border-top: none;
+  padding-top: 2px;
 }
 .radio-indicator-popover-lap {
   font-size: 11px;
@@ -466,11 +537,6 @@
   font-size: 12px;
   color: var(--text-lo);
   font-style: italic;
-}
-.radio-indicator-popover-reason {
-  font-size: 11px;
-  color: var(--flag-yellow);
-  font-weight: 600;
 }
 
 /* ---- track map ---- */
@@ -687,7 +753,13 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  max-height: 420px;
+  /* Fill the panel's actual height (see .rm-panel) instead of a fixed max-height that left
+   * a dead gap between the scroll area and the (taller) panel border below it. min-height:0
+   * overrides flexbox's default min-height:auto (which sizes a flex item to at least its
+   * content, i.e. every message fully expanded) so this can actually shrink to the space
+   * the grid gave it and scroll internally instead of forcing the panel to overflow it. */
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding-right: 4px;
 }
@@ -734,37 +806,6 @@
   color: var(--flag-yellow);
 }
 
-/* ---- notable radio widget ---- */
-.notable-radio-list {
-  max-height: 420px;
-  overflow-y: auto;
-  padding-right: 4px;
-}
-.notable-radio-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--line-800);
-  font-size: 12.5px;
-}
-.notable-radio-item:last-child {
-  border-bottom: none;
-}
-.notable-radio-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.notable-radio-item .radio-transcript {
-  padding-left: 0;
-}
-.notable-radio-reason {
-  color: var(--flag-yellow);
-  font-size: 11px;
-  font-weight: 600;
-  padding-left: 0;
-}
 
 /* ---- lap delta / corner comparison ---- */
 .lap-compare-controls {

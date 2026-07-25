@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import LapDeltaChart from "../components/racemode/LapDeltaChart";
-import NotableRadioWidget from "../components/racemode/NotableRadioWidget";
 import RaceControlFeed from "../components/racemode/RaceControlFeed";
 import SessionClock from "../components/racemode/SessionClock";
 import TeamRadioPanel from "../components/racemode/TeamRadioPanel";
@@ -83,6 +82,25 @@ const RaceMode: React.FC = () => {
   const [radioRefreshSignal, setRadioRefreshSignal] = useState(0);
   const [teamRadioClips, setTeamRadioClips] = useState<TeamRadioClip[]>([]);
   const [connected, setConnected] = useState(false);
+  // Pins the right-column panel rail's height to the Timing Tower panel's actual rendered
+  // height (see the .rm-right-rail div below), so Team Radio scrolls internally instead of
+  // growing to fit every message. Plain CSS (grid stretch + flex:1/min-height:0) can't do
+  // this: a grid track's "auto" height is computed from the *max-content* size of every
+  // item spanning it, including a flex child's full, uncollapsed message-list height -
+  // min-height:0 only lets a flex item shrink once its container already has a definite
+  // size, so it can't break this circularity on its own. Measuring the tower directly and
+  // applying that as an explicit height sidesteps the auto-sizing pass entirely.
+  const timingTowerPanelRef = useRef<HTMLDivElement | null>(null);
+  const [timingTowerHeight, setTimingTowerHeight] = useState<number | null>(null);
+  useEffect(() => {
+    const el = timingTowerPanelRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      setTimingTowerHeight(entries[0].contentRect.height);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
   // Whether any Position.z/CarData.z has actually been received this session - gates the
   // Track Map / Telemetry Compare / Lap Delta widgets. Not assumed from session type: F1
   // sometimes doesn't send these topics at all for a given live connection (confirmed
@@ -247,7 +265,7 @@ const RaceMode: React.FC = () => {
   }, [streamId]);
 
   // Lifted up (rather than fetched privately inside TeamRadioPanel, as it originally was)
-  // so TimingTower's per-row radio indicator and NotableRadioWidget can share the exact
+  // so TimingTower's per-row radio indicator and TeamRadioPanel can share the exact
   // same data instead of each running their own fetch against the same endpoint.
   const sessionKey = state.sessionKey;
   const refetchTeamRadio = useCallback(async () => {
@@ -296,7 +314,7 @@ const RaceMode: React.FC = () => {
       </div>
 
       <div className="rm-grid">
-        <div className="rm-panel" style={{ gridColumn: 1, gridRow: "1 / 3" }}>
+        <div className="rm-panel" ref={timingTowerPanelRef}>
           <div className="rm-panel-label">
             <span>Timing Tower</span>
           </div>
@@ -321,33 +339,37 @@ const RaceMode: React.FC = () => {
           />
         </div>
 
-        {hasPositionData && (
+        {/* Bundled into one flex-column rail, pinned via ResizeObserver (see
+            timingTowerHeight above) to exactly the Timing Tower panel's rendered height -
+            a CSS-only grid-stretch approach can't do this (see the comment on
+            timingTowerHeight for why). Track Map/Track Status/Telemetry Compare keep their
+            natural height; Team Radio (.rm-panel-fill) is the one item that flexes to
+            absorb whatever height is left over, scrolling internally instead of pushing
+            the rail past the tower's bottom edge. */}
+        <div className="rm-right-rail" style={{ height: timingTowerHeight ?? undefined }}>
+          {hasPositionData && (
+            <div className="rm-panel">
+              <div className="rm-panel-label">Track Map</div>
+              <TrackMap positionsRef={positionsRef} trailRef={trailRef} selectedDrivers={selectedDrivers} />
+            </div>
+          )}
+
           <div className="rm-panel">
-            <div className="rm-panel-label">Track Map</div>
-            <TrackMap positionsRef={positionsRef} trailRef={trailRef} selectedDrivers={selectedDrivers} />
+            <div className="rm-panel-label">Track Status &amp; Weather</div>
+            <TrackStatusBanner trackStatus={state.trackStatus} weather={state.weather} />
           </div>
-        )}
 
-        <div className="rm-panel">
-          <div className="rm-panel-label">Track Status &amp; Weather</div>
-          <TrackStatusBanner trackStatus={state.trackStatus} weather={state.weather} />
-        </div>
+          {hasTelemetryData && (
+            <div className="rm-panel">
+              <div className="rm-panel-label">Telemetry Compare</div>
+              <TelemetryLab telemetryRef={telemetryRef} selectedDrivers={selectedDrivers} />
+            </div>
+          )}
 
-        {hasTelemetryData && (
-          <div className="rm-panel">
-            <div className="rm-panel-label">Telemetry Compare</div>
-            <TelemetryLab telemetryRef={telemetryRef} selectedDrivers={selectedDrivers} />
+          <div className="rm-panel rm-panel-fill">
+            <div className="rm-panel-label">Team Radio</div>
+            <TeamRadioPanel clips={teamRadioClips} />
           </div>
-        )}
-
-        <div className="rm-panel">
-          <div className="rm-panel-label">Team Radio</div>
-          <TeamRadioPanel clips={teamRadioClips} />
-        </div>
-
-        <div className="rm-panel">
-          <div className="rm-panel-label">Notable Radio</div>
-          <NotableRadioWidget clips={teamRadioClips} />
         </div>
 
         {hasTelemetryData && hasPositionData && (

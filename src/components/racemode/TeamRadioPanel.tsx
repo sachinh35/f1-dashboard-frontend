@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { getRosterEntry } from "../../data/driverRoster";
 import { TeamRadioClip } from "../../types/raceMode";
+import { radioBadgeLabel } from "./radioLabel";
 
 interface TeamRadioPanelProps {
   clips: TeamRadioClip[];
@@ -39,6 +40,37 @@ function alignmentClass(speakerRole: TeamRadioClip["speaker_role"]): string {
 const TeamRadioPanel: React.FC<TeamRadioPanelProps> = ({ clips }) => {
   const sorted = [...clips].sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime());
 
+  // Exactly one clip may play at a time - clicking a second clip's play button must stop
+  // whatever's currently playing first, and clicking the currently-playing clip's own
+  // button pauses it, rather than starting an overlapping second Audio instance (the bug
+  // this fixes: every click created a brand-new `new Audio(...)`, so N clicks meant N
+  // clips playing simultaneously).
+  const [playingId, setPlayingId] = useState<number | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const stopPlayback = () => {
+    audioRef.current?.pause();
+    audioRef.current = null;
+    setPlayingId(null);
+  };
+
+  const togglePlay = (clip: TeamRadioClip) => {
+    if (playingId === clip.id) {
+      stopPlayback();
+      return;
+    }
+    stopPlayback();
+    if (!clip.audio_path) return;
+    const audio = new Audio(`${AUDIO_BASE_URL}/${clip.audio_path}`);
+    audio.addEventListener("ended", () => setPlayingId((id) => (id === clip.id ? null : id)));
+    audio.play().catch((err) => console.error(err));
+    audioRef.current = audio;
+    setPlayingId(clip.id);
+  };
+
+  // Never leave audio playing after the panel itself goes away (session switch, unmount).
+  useEffect(() => () => audioRef.current?.pause(), []);
+
   if (sorted.length === 0) {
     return <div style={{ color: "var(--text-faint)", fontSize: 13 }}>No team radio yet.</div>;
   }
@@ -53,6 +85,8 @@ const TeamRadioPanel: React.FC<TeamRadioPanelProps> = ({ clips }) => {
           clip.status !== "downloading" &&
           clip.status !== "failed_download";
         const notable = clip.is_notable === true;
+        const badge = radioBadgeLabel(clip);
+        const playing = playingId === clip.id;
 
         return (
           <div
@@ -63,18 +97,15 @@ const TeamRadioPanel: React.FC<TeamRadioPanelProps> = ({ clips }) => {
               <button
                 className="radio-play-btn"
                 disabled={!playable}
-                onClick={() => {
-                  if (clip.audio_path) {
-                    new Audio(`${AUDIO_BASE_URL}/${clip.audio_path}`).play().catch((err) => console.error(err));
-                  }
-                }}
+                aria-label={playing ? "Pause" : "Play"}
+                onClick={() => togglePlay(clip)}
               >
-                ▶
+                {playing ? "❚❚" : "▶"}
               </button>
               <span className="radio-driver" style={{ color: roster.teamColor }}>
                 {roster.tla}
               </span>
-              {clip.lap_number != null && <span className="radio-lap">LAP {clip.lap_number}</span>}
+              {badge != null && <span className="radio-lap">{badge}</span>}
               {notable && <span className="radio-notable-tag">● Notable</span>}
             </div>
             {clip.transcript ? (

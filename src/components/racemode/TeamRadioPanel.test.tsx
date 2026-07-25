@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import TeamRadioPanel from "./TeamRadioPanel";
 import { TeamRadioClip } from "../../types/raceMode";
 
@@ -9,6 +9,7 @@ function makeClip(overrides: Partial<TeamRadioClip>): TeamRadioClip {
     session_key: 9001,
     driver_number: 3,
     lap_number: 12,
+    qualifying_part: null,
     ts: "2026-07-23T12:00:00Z",
     audio_path: "clip.mp3",
     transcript: "Box this lap, box this lap.",
@@ -23,6 +24,14 @@ function makeClip(overrides: Partial<TeamRadioClip>): TeamRadioClip {
 }
 
 describe("TeamRadioPanel", () => {
+  let playSpy: ReturnType<typeof vi.spyOn>;
+  let pauseSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    playSpy = vi.spyOn(window.HTMLMediaElement.prototype, "play").mockImplementation(() => Promise.resolve());
+    pauseSpy = vi.spyOn(window.HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+  });
+
   it('renders "No team radio yet." when clips is empty', () => {
     render(<TeamRadioPanel clips={[]} />);
     expect(screen.getByText(/no team radio yet/i)).toBeInTheDocument();
@@ -90,5 +99,71 @@ describe("TeamRadioPanel", () => {
     );
     const tlas = screen.getAllByText(/^(VER|LEC)$/).map((el) => el.textContent);
     expect(tlas).toEqual(["LEC", "VER"]);
+  });
+
+  it("shows a LAP N badge for a race clip (qualifying_part is null)", () => {
+    render(<TeamRadioPanel clips={[makeClip({ lap_number: 15, qualifying_part: null })]} />);
+    expect(screen.getByText("LAP 15")).toBeInTheDocument();
+  });
+
+  it("shows the qualifying segment instead of a lap number for a qualifying clip", () => {
+    render(<TeamRadioPanel clips={[makeClip({ lap_number: 15, qualifying_part: "Q1" })]} />);
+    expect(screen.getByText("Q1")).toBeInTheDocument();
+    expect(screen.queryByText(/LAP 15/)).not.toBeInTheDocument();
+  });
+
+  it("renders no lap/segment badge when neither is known", () => {
+    const { container } = render(<TeamRadioPanel clips={[makeClip({ lap_number: null, qualifying_part: null })]} />);
+    expect(container.querySelector(".radio-lap")).toBeNull();
+  });
+
+  it("clicking play starts playback and swaps the button to a pause control", () => {
+    render(<TeamRadioPanel clips={[makeClip({})]} />);
+    playSpy.mockClear();
+    pauseSpy.mockClear();
+    const button = screen.getByRole("button", { name: "Play" });
+
+    fireEvent.click(button);
+
+    expect(playSpy).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Pause" })).toBeInTheDocument();
+  });
+
+  it("clicking the currently-playing clip's button pauses it instead of starting a second one", () => {
+    render(<TeamRadioPanel clips={[makeClip({})]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    playSpy.mockClear();
+    pauseSpy.mockClear();
+
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+
+    expect(pauseSpy).toHaveBeenCalledTimes(1);
+    expect(playSpy).not.toHaveBeenCalled(); // never played a second time
+    expect(screen.getByRole("button", { name: "Play" })).toBeInTheDocument();
+  });
+
+  it("playing a second clip stops the first - never two clips playing at once", () => {
+    render(
+      <TeamRadioPanel
+        clips={[
+          makeClip({ id: 1, driver_number: 3, ts: "2026-07-23T12:00:00Z" }),
+          makeClip({ id: 2, driver_number: 16, ts: "2026-07-23T12:05:00Z" }),
+        ]}
+      />
+    );
+    // Sorted newest-first: clip 2 (LEC) then clip 1 (VER).
+    const [secondButton, firstButton] = screen.getAllByRole("button");
+    playSpy.mockClear();
+    pauseSpy.mockClear();
+
+    fireEvent.click(secondButton);
+    expect(playSpy).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(firstButton);
+
+    expect(pauseSpy).toHaveBeenCalledTimes(1); // stopped clip 2 before starting clip 1
+    expect(playSpy).toHaveBeenCalledTimes(2);
+    expect(secondButton).toHaveAccessibleName("Play");
+    expect(firstButton).toHaveAccessibleName("Pause");
   });
 });

@@ -27,15 +27,12 @@ interface TimingTowerProps {
   qualifyingGaps: Record<string, number>;
 }
 
-/** Reduces the full clip list down to each driver's single most-recent clip (by ts), so
- * TimingTower's per-row RadioIndicator always shows the latest without re-deriving it per row. */
-function latestClipByDriver(clips: TeamRadioClip[]): Record<number, TeamRadioClip> {
-  const result: Record<number, TeamRadioClip> = {};
+/** Groups the full clip list by driver, so TimingTower's per-row RadioIndicator can show
+ * every message for that driver (chronologically, on hover) without re-deriving it per row. */
+function clipsByDriver(clips: TeamRadioClip[]): Record<number, TeamRadioClip[]> {
+  const result: Record<number, TeamRadioClip[]> = {};
   for (const clip of clips) {
-    const existing = result[clip.driver_number];
-    if (!existing || new Date(clip.ts).getTime() > new Date(existing.ts).getTime()) {
-      result[clip.driver_number] = clip;
-    }
+    (result[clip.driver_number] ??= []).push(clip);
   }
   return result;
 }
@@ -96,7 +93,7 @@ const TimingTower: React.FC<TimingTowerProps> = ({
       const posB = Number(b.timing.Position) || 999;
       return posA - posB;
     });
-  const latestRadioByDriver = latestClipByDriver(teamRadioClips);
+  const radioClipsByDriver = clipsByDriver(teamRadioClips);
 
   if (rows.length === 0) {
     return <div style={{ color: "var(--text-faint)", fontSize: 13 }}>Waiting for timing data…</div>;
@@ -169,7 +166,7 @@ const TimingTower: React.FC<TimingTowerProps> = ({
               <BattleRadarIndicator alert={battleRadar[String(driverNumber)]} />
             </span>
             <span className="radio-indicator-slot">
-              <RadioIndicator clip={latestRadioByDriver[driverNumber]} />
+              <RadioIndicator clips={radioClipsByDriver[driverNumber] ?? []} />
             </span>
             <span className={`lap mono ${lapTimeClass(displayedLap)}`}>{displayedLap?.Value || "-"}</span>
             {isQualifying && (

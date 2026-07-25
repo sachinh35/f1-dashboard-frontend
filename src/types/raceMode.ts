@@ -151,6 +151,9 @@ export interface CompletedLapWire {
 export interface NewRadioCaptureWire {
   driver_number: number;
   lap_number: number | null;
+  /** Which qualifying segment this was captured in (e.g. "Q2") - null for a race/practice
+   * session, or a capture that arrived before SessionInfo established the session type. */
+  qualifying_part: string | null;
   utc: string;
 }
 
@@ -170,6 +173,10 @@ export interface TeamRadioClip {
   session_key: number;
   driver_number: number;
   lap_number: number | null;
+  /** Which qualifying segment this was captured in (e.g. "Q2") - null for a race/practice
+   * session. Prefer this over lap_number for display during qualifying, where a raw lap
+   * count is a session-cumulative number, not a meaningful "current lap". */
+  qualifying_part: string | null;
   ts: string;
   audio_path: string | null;
   transcript: string | null;
