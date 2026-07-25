@@ -82,10 +82,19 @@ export const getSessionRaceControlEvents = async (session_key: number): Promise<
     return response.data.events as RaceControlEvent[];
 };
 
+export interface ConfirmedRosterEntry {
+    driver_number: number;
+    tla: string;
+    full_name: string;
+    team_name: string;
+    team_colour?: string;
+}
+
 export interface StartStreamRequest {
     access_token?: string;
     refresh_token?: string;
     cookies?: string;
+    confirmed_roster?: ConfirmedRosterEntry[];
 }
 
 export interface AuthenticateRequest {
@@ -118,13 +127,19 @@ export const authenticateF1TV = async (email: string, password: string): Promise
     return response.data;
 };
 
-export const startLiveStream = async (accessToken?: string, refreshToken?: string, cookies?: string): Promise<StartStreamResponse> => {
+export const startLiveStream = async (
+    accessToken?: string,
+    refreshToken?: string,
+    cookies?: string,
+    confirmedRoster?: ConfirmedRosterEntry[]
+): Promise<StartStreamResponse> => {
     const response = await axios.post<StartStreamResponse>(
         `${API_BASE_URL}/start-live-stream`,
         {
             access_token: accessToken,
             refresh_token: refreshToken,
-            cookies: cookies
+            cookies: cookies,
+            confirmed_roster: confirmedRoster
         } as StartStreamRequest
     );
     return response.data;
@@ -133,6 +148,7 @@ export const startLiveStream = async (accessToken?: string, refreshToken?: strin
 export interface SimulateStreamRequest {
     log_file?: string;
     speed_factor?: number;
+    confirmed_roster?: ConfirmedRosterEntry[];
 }
 
 export const startSimulation = async (request?: SimulateStreamRequest): Promise<StartStreamResponse> => {
@@ -140,6 +156,26 @@ export const startSimulation = async (request?: SimulateStreamRequest): Promise<
         `${API_BASE_URL}/simulate-live-stream`,
         request ?? {}
     );
+    return response.data;
+};
+
+export interface TeamDriverPoolEntry {
+    team_name: string;
+    driver_number: number | null;
+    tla: string | null;
+    full_name: string;
+    is_reserve: boolean;
+}
+
+export interface GetTeamDriverPoolResponse {
+    season_year: number;
+    drivers: TeamDriverPoolEntry[];
+}
+
+export const getTeamDriverPool = async (seasonYear = 2026): Promise<GetTeamDriverPoolResponse> => {
+    const response = await axios.get<GetTeamDriverPoolResponse>(`${API_BASE_URL}/team-driver-pool`, {
+        params: { season_year: seasonYear }
+    });
     return response.data;
 };
 

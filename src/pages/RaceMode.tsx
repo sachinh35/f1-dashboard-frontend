@@ -8,6 +8,8 @@ import TelemetryLab from "../components/racemode/TelemetryLab";
 import TimingTower from "../components/racemode/TimingTower";
 import TrackMap from "../components/racemode/TrackMap";
 import TrackStatusBanner from "../components/racemode/TrackStatusBanner";
+import { clearLiveRoster, rosterEntryFromWire, setLiveRoster } from "../data/driverRoster";
+import type { DriverRosterWireEntry } from "../data/driverRoster";
 import { connectRaceModeStream } from "../services/sse";
 import "../styles/raceMode.css";
 import {
@@ -25,6 +27,12 @@ import {
   TrackStatus,
   Weather,
 } from "../types/raceMode";
+
+function applyRosterWire(wire: Record<string, DriverRosterWireEntry>): void {
+  setLiveRoster(
+    Object.fromEntries(Object.values(wire).map((entry) => [entry.driver_number, rosterEntryFromWire(entry)]))
+  );
+}
 
 interface SlowState {
   sessionKey: number | null;
@@ -79,6 +87,7 @@ const RaceMode: React.FC = () => {
     telemetryRef.current = {};
     positionsRef.current = {};
     trailRef.current = {};
+    clearLiveRoster();
     setConnected(true);
 
     const disconnect = connectRaceModeStream(streamId, {
@@ -97,6 +106,10 @@ const RaceMode: React.FC = () => {
           extrapolatedClock: snapshot.extrapolated_clock,
           raceControlMessages: snapshot.race_control_messages,
         });
+        if (snapshot.driver_roster) applyRosterWire(snapshot.driver_roster);
+      },
+      driver_roster: (data) => {
+        if (data.driver_roster) applyRosterWire(data.driver_roster);
       },
       TimingData: (data) => {
         if (data.drivers) {

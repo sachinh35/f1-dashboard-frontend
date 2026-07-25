@@ -7,6 +7,7 @@
  * Last-Event-ID resume, handled natively by the browser) for free - see the
  * product investigation artifact's SSE-vs-WebSocket discussion.
  */
+import type { DriverRosterWireEntry } from "../data/driverRoster";
 import {
   CompletedLapWire,
   DriverListInfo,
@@ -39,6 +40,7 @@ export interface RaceModeEventMap {
   LapCount: { lap_count?: LapCountData };
   ExtrapolatedClock: { extrapolated_clock?: ExtrapolatedClockData };
   RaceControlMessages: { race_control_messages?: Record<string, RaceControlEntry> };
+  driver_roster: { driver_roster?: Record<string, DriverRosterWireEntry> };
   "CarData.z": { telemetry?: Record<string, TelemetrySample> };
   "Position.z": { positions?: Record<string, PositionSample> };
   TeamRadio: { new_radio_captures?: NewRadioCaptureWire[] };

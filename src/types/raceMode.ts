@@ -7,6 +7,7 @@
  * therefore just a shallow per-driver overwrite, never a deep merge - the
  * backend already did that work.
  */
+import type { DriverRosterWireEntry } from "../data/driverRoster";
 
 export interface DriverTiming {
   Position?: string;
@@ -190,4 +191,5 @@ export interface RaceModeSnapshot {
   lap_count: LapCountData;
   extrapolated_clock: ExtrapolatedClockData;
   race_control_messages: Record<string, RaceControlEntry>;
+  driver_roster: Record<string, DriverRosterWireEntry>;
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getYears, getRacesForYear, getSessionResults, getSessionLapData, getSessionStints, getSessionRaceControlEvents, LapData, Stint, RaceControlEvent, startLiveStream, startSimulation } from '../services/api';
+import { getYears, getRacesForYear, getSessionResults, getSessionLapData, getSessionStints, getSessionRaceControlEvents, LapData, Stint, RaceControlEvent, startLiveStream, startSimulation, ConfirmedRosterEntry } from '../services/api';
 import {
     Box,
     Grid,
@@ -38,6 +38,7 @@ import SportsMotorsportsIcon from '@mui/icons-material/SportsMotorsports';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
 import LiveTvIcon from '@mui/icons-material/LiveTv';
 import LapComparisonChart from './LapComparisonChart';
+import ConfirmRosterDialog from './ConfirmRosterDialog';
 import { Race, EnrichedF1SessionResult } from '../types';
 import { formatDuration } from '../utils/formatting';
 import { getCountryFlagEmoji, getCountryName } from '../utils/countryMapping';
@@ -72,6 +73,8 @@ const Dashboard = () => {
     const [streaming, setStreaming] = useState(false);
     const [streamingLoading, setStreamingLoading] = useState(false);
     const [streamMessage, setStreamMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+    const [rosterDialogOpen, setRosterDialogOpen] = useState(false);
+    const [rosterDialogAction, setRosterDialogAction] = useState<'live' | 'simulate' | null>(null);
 
     const navigate = useNavigate();
 
@@ -83,44 +86,80 @@ const Dashboard = () => {
         setAnchorEl(null);
     };
 
-    const handleStartLiveStream = async () => {
-        try {
-            setStreamingLoading(true);
-            setStreamMessage(null);
+    const handleStartLiveStream = () => {
+        setRosterDialogAction('live');
+        setRosterDialogOpen(true);
+    };
 
-            // Step 1: Start the stream on the backend (backend handles auth using saved token)
-            const response = await startLiveStream();
+    const handleStartSimulation = () => {
+        setRosterDialogAction('simulate');
+        setRosterDialogOpen(true);
+    };
 
-            setStreaming(true);
-            setStreamMessage({
-                type: 'success',
-                text: `Live stream started! Stream ID: ${response.stream_id}. Log file: ${response.log_file}`
-            });
+    const handleRosterDialogClose = () => {
+        setRosterDialogOpen(false);
+        setRosterDialogAction(null);
+    };
 
-            // Redirect to live stream page
-            navigate(`/live-stream/${response.stream_id}`);
+    const handleRosterConfirmed = async (confirmedRoster: ConfirmedRosterEntry[]) => {
+        const action = rosterDialogAction;
+        setRosterDialogOpen(false);
+        setRosterDialogAction(null);
 
-        } catch (error: any) {
-            console.error('Error starting live stream:', error);
-            let errorMessage = 'Failed to start live stream.';
+        if (action === 'live') {
+            try {
+                setStreamingLoading(true);
+                setStreamMessage(null);
 
-            if (error.response) {
-                if (error.response.status === 400 || error.response.status === 401) {
-                    errorMessage = 'Authentication required. Please run "python auth_helper.py" in the backend directory to authenticate with F1 TV Pro.';
-                } else if (error.response.data?.detail) {
-                    errorMessage = error.response.data.detail;
+                // Step 1: Start the stream on the backend (backend handles auth using saved token)
+                const response = await startLiveStream(undefined, undefined, undefined, confirmedRoster);
+
+                setStreaming(true);
+                setStreamMessage({
+                    type: 'success',
+                    text: `Live stream started! Stream ID: ${response.stream_id}. Log file: ${response.log_file}`
+                });
+
+                // Redirect to live stream page
+                navigate(`/live-stream/${response.stream_id}`);
+
+            } catch (error: any) {
+                console.error('Error starting live stream:', error);
+                let errorMessage = 'Failed to start live stream.';
+
+                if (error.response) {
+                    if (error.response.status === 400 || error.response.status === 401) {
+                        errorMessage = 'Authentication required. Please run "uv run python auth_helper.py" in the backend directory to authenticate with F1 TV Pro.';
+                    } else if (error.response.data?.detail) {
+                        errorMessage = error.response.data.detail;
+                    }
+                } else if (error.message) {
+                    errorMessage = error.message;
                 }
-            } else if (error.message) {
-                errorMessage = error.message;
-            }
 
-            setStreamMessage({
-                type: 'error',
-                text: errorMessage
-            });
-            setStreaming(false);
-        } finally {
-            setStreamingLoading(false);
+                setStreamMessage({
+                    type: 'error',
+                    text: errorMessage
+                });
+                setStreaming(false);
+            } finally {
+                setStreamingLoading(false);
+            }
+        } else if (action === 'simulate') {
+            try {
+                setStreamingLoading(true);
+                const response = await startSimulation({ confirmed_roster: confirmedRoster });
+                setStreaming(true);
+                navigate(`/live-stream/${response.stream_id}`);
+            } catch (error: any) {
+                console.error('Error starting simulation:', error);
+                setStreamMessage({
+                    type: 'error',
+                    text: 'Failed to start simulation'
+                });
+            } finally {
+                setStreamingLoading(false);
+            }
         }
     };
 
@@ -365,22 +404,7 @@ const Dashboard = () => {
                     <Button
                         variant="outlined"
                         color="secondary"
-                        onClick={async () => {
-                            try {
-                                setStreamingLoading(true);
-                                const response = await startSimulation();
-                                setStreaming(true);
-                                navigate(`/live-stream/${response.stream_id}`);
-                            } catch (error: any) {
-                                console.error('Error starting simulation:', error);
-                                setStreamMessage({
-                                    type: 'error',
-                                    text: 'Failed to start simulation'
-                                });
-                            } finally {
-                                setStreamingLoading(false);
-                            }
-                        }}
+                        onClick={handleStartSimulation}
                         disabled={streamingLoading || streaming}
                         sx={{
                             px: 3,
@@ -398,6 +422,13 @@ const Dashboard = () => {
                     Explore Formula 1 race results and session data
                 </Typography>
             </Box>
+
+            <ConfirmRosterDialog
+                open={rosterDialogOpen}
+                onClose={handleRosterDialogClose}
+                onConfirm={handleRosterConfirmed}
+                title={rosterDialogAction === 'simulate' ? 'Confirm Lineup for Simulation' : 'Confirm Lineup Before Going Live'}
+            />
 
             <Snackbar
                 open={streamMessage !== null}
