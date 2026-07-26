@@ -48,6 +48,15 @@ export interface TimingAppDataInfo {
   GridPos?: string;
 }
 
+/** One resolved tyre stint for display, derived from TimingAppDataInfo.Stints - see
+ * TimingTower.tsx's compoundHistory(). Shared between TimingTower and TyreStintIndicator. */
+export interface StintEntry {
+  compound: string;
+  /** Laps completed on this set of tyres so far (F1's own Stints[i].TotalLaps, live-updating
+   * for the current stint) - undefined only if F1 hasn't sent a lap count for this stint yet. */
+  laps?: number;
+}
+
 export interface TimingStatsInfo {
   BestSpeeds?: Record<string, { Position?: number; Value?: string }>;
   PersonalBestLapTime?: { Value?: string };
@@ -136,6 +145,25 @@ export interface BattleRadarAlert {
   gap_seconds: number;
   alert_level: "battle" | "upcoming";
   lap_history: BattleRadarLapGap[];
+}
+
+/** Mirrors utils/tyre_strategy_prediction.PredictedStint - one stint in a Gemini-predicted
+ * remaining strategy, from the stint currently on the car through to the finish. */
+export interface PredictedStintWire {
+  stint_number: number;
+  compound: "soft" | "medium" | "hard" | "intermediate" | "wet";
+  predicted_total_laps: number;
+}
+
+/** Mirrors SessionState.tyre_strategy_predictions entries (utils/session_state.py) - race
+ * mode only, refreshed once per driver per completed lap by a Strands Agent/Gemini call
+ * (see utils/tyre_strategy_prediction.py). Never present during qualifying. */
+export interface TyreStrategyPredictionWire {
+  driver_number: number;
+  generated_at_lap: number;
+  predicted_stints: PredictedStintWire[];
+  safety_car_note: string;
+  summary: string;
 }
 
 export interface CompletedLapWire {
@@ -236,6 +264,7 @@ export interface RaceModeSnapshot {
   race_control_messages: Record<string, RaceControlEntry>;
   driver_roster: Record<string, DriverRosterWireEntry>;
   battle_radar: Record<string, BattleRadarAlert>;
+  tyre_strategy_predictions: Record<string, TyreStrategyPredictionWire>;
   /** "Q1"/"Q2"/"Q3" for a qualifying session, null otherwise or before the first
    * segment is known - see SessionState.qualifying_part (utils/session_state.py). */
   qualifying_part: string | null;

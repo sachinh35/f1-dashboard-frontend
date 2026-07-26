@@ -12,6 +12,7 @@ describe("TimingTower", () => {
         selectedDrivers={[]}
         onToggleDriver={vi.fn()}
         battleRadar={{}}
+        tyreStrategyPredictions={{}}
         teamRadioClips={[]}
         isQualifying={false}
         eliminatedDrivers={[]}
@@ -34,6 +35,7 @@ describe("TimingTower", () => {
         selectedDrivers={[]}
         onToggleDriver={vi.fn()}
         battleRadar={{}}
+        tyreStrategyPredictions={{}}
         teamRadioClips={[]}
         isQualifying={false}
         eliminatedDrivers={[]}
@@ -54,6 +56,7 @@ describe("TimingTower", () => {
         selectedDrivers={[]}
         onToggleDriver={onToggle}
         battleRadar={{}}
+        tyreStrategyPredictions={{}}
         teamRadioClips={[]}
         isQualifying={false}
         eliminatedDrivers={[]}
@@ -73,6 +76,7 @@ describe("TimingTower", () => {
         selectedDrivers={[]}
         onToggleDriver={vi.fn()}
         battleRadar={{}}
+        tyreStrategyPredictions={{}}
         teamRadioClips={[]}
         isQualifying={false}
         eliminatedDrivers={[]}
@@ -93,6 +97,7 @@ describe("TimingTower", () => {
         selectedDrivers={[]}
         onToggleDriver={vi.fn()}
         battleRadar={{}}
+        tyreStrategyPredictions={{}}
         teamRadioClips={[]}
         isQualifying={false}
         eliminatedDrivers={[]}
@@ -100,6 +105,229 @@ describe("TimingTower", () => {
       />
     );
     expect(screen.getByText("+1.234")).toBeInTheDocument();
+  });
+
+  describe("race mode tyre stint history", () => {
+    it("shows every stint separately, including a repeat pit stop onto the same compound (soft, hard, hard)", () => {
+      render(
+        <TimingTower
+          drivers={{ "44": { Position: "1" } }}
+          timingAppData={{
+            "44": {
+              Stints: {
+                "0": { Compound: "SOFT", TotalLaps: 13 },
+                "1": { Compound: "HARD", TotalLaps: 17 },
+                "2": { Compound: "HARD", TotalLaps: 4 },
+              },
+            },
+          }}
+          timingStats={{}}
+          selectedDrivers={[]}
+          onToggleDriver={vi.fn()}
+          battleRadar={{}}
+          tyreStrategyPredictions={{}}
+          teamRadioClips={[]}
+          isQualifying={false}
+          eliminatedDrivers={[]}
+          qualifyingGaps={{}}
+        />
+      );
+      // Two HARD chips must both render (not collapsed into one) - real second pit stop.
+      expect(screen.getAllByText("H")).toHaveLength(2);
+      expect(screen.getAllByText("S")).toHaveLength(1);
+    });
+
+    it("reveals a tyre strategy popover with per-stint lap counts on hover, hidden until then", () => {
+      render(
+        <TimingTower
+          drivers={{ "44": { Position: "1" } }}
+          timingAppData={{
+            "44": {
+              Stints: {
+                "0": { Compound: "SOFT", TotalLaps: 13 },
+                "1": { Compound: "HARD", TotalLaps: 17 },
+                "2": { Compound: "HARD", TotalLaps: 4 },
+              },
+            },
+          }}
+          timingStats={{}}
+          selectedDrivers={[]}
+          onToggleDriver={vi.fn()}
+          battleRadar={{}}
+          tyreStrategyPredictions={{}}
+          teamRadioClips={[]}
+          isQualifying={false}
+          eliminatedDrivers={[]}
+          qualifyingGaps={{}}
+        />
+      );
+      expect(screen.queryByText("Tyre Strategy")).not.toBeInTheDocument();
+
+      const badge = document.querySelector(".tyre-stint-badge");
+      expect(badge).not.toBeNull();
+      fireEvent.mouseEnter(badge!);
+
+      expect(screen.getByText("Tyre Strategy")).toBeInTheDocument();
+      expect(screen.getByText("13L")).toBeInTheDocument();
+      expect(screen.getByText("17L")).toBeInTheDocument();
+      expect(screen.getByText("4L")).toBeInTheDocument();
+
+      fireEvent.mouseLeave(badge!);
+      expect(screen.queryByText("Tyre Strategy")).not.toBeInTheDocument();
+    });
+
+    it("dedupes consecutive same-compound stints in qualifying, but not in race mode, from the same data", () => {
+      const timingAppData = {
+        "44": {
+          Stints: {
+            "0": { Compound: "SOFT", TotalLaps: 13 },
+            "1": { Compound: "HARD", TotalLaps: 17 },
+            "2": { Compound: "HARD", TotalLaps: 4 },
+          },
+        },
+      };
+      const { rerender } = render(
+        <TimingTower
+          drivers={{ "44": { Position: "1" } }}
+          timingAppData={timingAppData}
+          timingStats={{}}
+          selectedDrivers={[]}
+          onToggleDriver={vi.fn()}
+          battleRadar={{}}
+          tyreStrategyPredictions={{}}
+          teamRadioClips={[]}
+          isQualifying={true}
+          eliminatedDrivers={[]}
+          qualifyingGaps={{ "44": 0 }}
+        />
+      );
+      expect(screen.getAllByText("H")).toHaveLength(1);
+
+      rerender(
+        <TimingTower
+          drivers={{ "44": { Position: "1" } }}
+          timingAppData={timingAppData}
+          timingStats={{}}
+          selectedDrivers={[]}
+          onToggleDriver={vi.fn()}
+          battleRadar={{}}
+          tyreStrategyPredictions={{}}
+          teamRadioClips={[]}
+          isQualifying={false}
+          eliminatedDrivers={[]}
+          qualifyingGaps={{}}
+        />
+      );
+      expect(screen.getAllByText("H")).toHaveLength(2);
+    });
+
+    it("passes each driver their own predicted strategy, keyed by driver number", () => {
+      render(
+        <TimingTower
+          drivers={{ "44": { Position: "1" }, "1": { Position: "2" } }}
+          timingAppData={{
+            "44": { Stints: { "0": { Compound: "HARD", TotalLaps: 8 } } },
+            "1": { Stints: { "0": { Compound: "SOFT", TotalLaps: 8 } } },
+          }}
+          timingStats={{}}
+          selectedDrivers={[]}
+          onToggleDriver={vi.fn()}
+          battleRadar={{}}
+          tyreStrategyPredictions={{
+            "44": {
+              driver_number: 44,
+              generated_at_lap: 8,
+              predicted_stints: [{ stint_number: 1, compound: "hard", predicted_total_laps: 30 }],
+              safety_car_note: "Low SC risk.",
+              summary: "Hamilton's predicted strategy.",
+            },
+          }}
+          teamRadioClips={[]}
+          isQualifying={false}
+          eliminatedDrivers={[]}
+          qualifyingGaps={{}}
+        />
+      );
+      // Rows sort by Position - driver 44 (P1, has a prediction) renders first, driver 1
+      // (P2, no prediction) second.
+      const badges = document.querySelectorAll(".tyre-stint-badge");
+      fireEvent.mouseEnter(badges[0]);
+      expect(screen.getByText("Hamilton's predicted strategy.")).toBeInTheDocument();
+      fireEvent.mouseLeave(badges[0]);
+
+      fireEvent.mouseEnter(badges[1]);
+      expect(screen.queryByText("Predicted Strategy")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("race mode gap/interval toggle", () => {
+    it("defaults to GapToLeader and switches to IntervalToPositionAhead when the header toggle is clicked", () => {
+      render(
+        <TimingTower
+          drivers={{
+            "3": { Position: "1", GapToLeader: "+1.234", IntervalToPositionAhead: { Value: "+0.456" } },
+          }}
+          timingAppData={{}}
+          timingStats={{}}
+          selectedDrivers={[]}
+          onToggleDriver={vi.fn()}
+          battleRadar={{}}
+          tyreStrategyPredictions={{}}
+          teamRadioClips={[]}
+          isQualifying={false}
+          eliminatedDrivers={[]}
+          qualifyingGaps={{}}
+        />
+      );
+      expect(screen.getByText("+1.234")).toBeInTheDocument();
+      expect(screen.queryByText("+0.456")).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByText("Gap"));
+
+      expect(screen.getByText("+0.456")).toBeInTheDocument();
+      expect(screen.queryByText("+1.234")).not.toBeInTheDocument();
+      expect(screen.getByText("Int")).toBeInTheDocument();
+    });
+
+    it("clicking the header toggle does not select a driver row", () => {
+      const onToggleDriver = vi.fn();
+      render(
+        <TimingTower
+          drivers={{ "3": { Position: "1", GapToLeader: "+1.234" } }}
+          timingAppData={{}}
+          timingStats={{}}
+          selectedDrivers={[]}
+          onToggleDriver={onToggleDriver}
+          battleRadar={{}}
+          tyreStrategyPredictions={{}}
+          teamRadioClips={[]}
+          isQualifying={false}
+          eliminatedDrivers={[]}
+          qualifyingGaps={{}}
+        />
+      );
+      fireEvent.click(screen.getByText("Gap"));
+      expect(onToggleDriver).not.toHaveBeenCalled();
+    });
+
+    it("does not render a clickable toggle during qualifying", () => {
+      render(
+        <TimingTower
+          drivers={{ "3": { Position: "1", GapToLeader: "+1.234" } }}
+          timingAppData={{}}
+          timingStats={{}}
+          selectedDrivers={[]}
+          onToggleDriver={vi.fn()}
+          battleRadar={{}}
+          tyreStrategyPredictions={{}}
+          teamRadioClips={[]}
+          isQualifying={true}
+          eliminatedDrivers={[]}
+          qualifyingGaps={{ "3": 0 }}
+        />
+      );
+      expect(screen.getByText("Gap")).not.toHaveAttribute("role");
+    });
   });
 
   describe("qualifying mode", () => {
@@ -121,6 +349,7 @@ describe("TimingTower", () => {
           selectedDrivers={[]}
           onToggleDriver={vi.fn()}
           battleRadar={{}}
+          tyreStrategyPredictions={{}}
           teamRadioClips={[]}
           isQualifying={true}
           eliminatedDrivers={[]}
@@ -141,6 +370,7 @@ describe("TimingTower", () => {
           selectedDrivers={[]}
           onToggleDriver={vi.fn()}
           battleRadar={{}}
+          tyreStrategyPredictions={{}}
           teamRadioClips={[]}
           isQualifying={true}
           eliminatedDrivers={[]}
@@ -161,6 +391,7 @@ describe("TimingTower", () => {
           selectedDrivers={[]}
           onToggleDriver={vi.fn()}
           battleRadar={{}}
+          tyreStrategyPredictions={{}}
           teamRadioClips={[]}
           isQualifying={true}
           eliminatedDrivers={[]}
@@ -187,6 +418,7 @@ describe("TimingTower", () => {
           selectedDrivers={[]}
           onToggleDriver={vi.fn()}
           battleRadar={{}}
+          tyreStrategyPredictions={{}}
           teamRadioClips={[]}
           isQualifying={true}
           eliminatedDrivers={[]}
@@ -206,6 +438,7 @@ describe("TimingTower", () => {
           selectedDrivers={[]}
           onToggleDriver={vi.fn()}
           battleRadar={{}}
+          tyreStrategyPredictions={{}}
           teamRadioClips={[]}
           isQualifying={true}
           eliminatedDrivers={[]}
@@ -235,6 +468,7 @@ describe("TimingTower", () => {
           selectedDrivers={[]}
           onToggleDriver={vi.fn()}
           battleRadar={{}}
+          tyreStrategyPredictions={{}}
           teamRadioClips={[]}
           isQualifying={true}
           eliminatedDrivers={[]}
@@ -264,6 +498,7 @@ describe("TimingTower", () => {
           selectedDrivers={[]}
           onToggleDriver={vi.fn()}
           battleRadar={{}}
+          tyreStrategyPredictions={{}}
           teamRadioClips={[]}
           isQualifying={true}
           eliminatedDrivers={[]}
@@ -291,6 +526,7 @@ describe("TimingTower", () => {
           selectedDrivers={[]}
           onToggleDriver={vi.fn()}
           battleRadar={{}}
+          tyreStrategyPredictions={{}}
           teamRadioClips={[]}
           isQualifying={true}
           eliminatedDrivers={[]}
@@ -317,6 +553,7 @@ describe("TimingTower", () => {
           selectedDrivers={[]}
           onToggleDriver={vi.fn()}
           battleRadar={{}}
+          tyreStrategyPredictions={{}}
           teamRadioClips={[]}
           isQualifying={true}
           eliminatedDrivers={[]}
@@ -336,6 +573,7 @@ describe("TimingTower", () => {
           selectedDrivers={[]}
           onToggleDriver={vi.fn()}
           battleRadar={{}}
+          tyreStrategyPredictions={{}}
           teamRadioClips={[]}
           isQualifying={true}
           eliminatedDrivers={[3]}
@@ -354,6 +592,7 @@ describe("TimingTower", () => {
           selectedDrivers={[]}
           onToggleDriver={vi.fn()}
           battleRadar={{}}
+          tyreStrategyPredictions={{}}
           teamRadioClips={[]}
           isQualifying={true}
           eliminatedDrivers={[3]}
@@ -372,6 +611,7 @@ describe("TimingTower", () => {
           selectedDrivers={[]}
           onToggleDriver={vi.fn()}
           battleRadar={{}}
+          tyreStrategyPredictions={{}}
           teamRadioClips={[]}
           isQualifying={true}
           eliminatedDrivers={[]}

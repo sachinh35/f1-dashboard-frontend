@@ -28,6 +28,7 @@ import {
   TimingStatsInfo,
   TopThreeInfo,
   TrackStatus,
+  TyreStrategyPredictionWire,
   Weather,
 } from "../types/raceMode";
 
@@ -51,6 +52,7 @@ interface SlowState {
   extrapolatedClock: ExtrapolatedClockData;
   raceControlMessages: Record<string, RaceControlEntry>;
   battleRadar: Record<string, BattleRadarAlert>;
+  tyreStrategyPredictions: Record<string, TyreStrategyPredictionWire>;
   qualifyingPart: string | null;
   eliminatedDrivers: number[];
   qualifyingGaps: Record<string, number>;
@@ -70,6 +72,7 @@ const INITIAL_STATE: SlowState = {
   extrapolatedClock: {},
   raceControlMessages: {},
   battleRadar: {},
+  tyreStrategyPredictions: {},
   qualifyingPart: null,
   eliminatedDrivers: [],
   qualifyingGaps: {},
@@ -147,6 +150,7 @@ const RaceMode: React.FC = () => {
           extrapolatedClock: snapshot.extrapolated_clock,
           raceControlMessages: snapshot.race_control_messages,
           battleRadar: snapshot.battle_radar ?? {},
+          tyreStrategyPredictions: snapshot.tyre_strategy_predictions ?? {},
           qualifyingPart: snapshot.qualifying_part,
           eliminatedDrivers: snapshot.eliminated_drivers ?? [],
           qualifyingGaps: snapshot.qualifying_gaps ?? {},
@@ -256,6 +260,12 @@ const RaceMode: React.FC = () => {
       RADIO_CLIP_READY: () => setRadioRefreshSignal((n) => n + 1),
       RADIO_TRANSCRIPT_READY: () => setRadioRefreshSignal((n) => n + 1),
       RADIO_ANALYSIS_READY: () => setRadioRefreshSignal((n) => n + 1),
+      TYRE_STRATEGY_PREDICTION: (data) => {
+        setState((prev) => ({
+          ...prev,
+          tyreStrategyPredictions: { ...prev.tyreStrategyPredictions, [String(data.driver_number)]: data.prediction },
+        }));
+      },
     });
 
     return () => {
@@ -330,6 +340,7 @@ const RaceMode: React.FC = () => {
             timingAppData={state.timingAppData}
             timingStats={state.timingStats}
             battleRadar={state.battleRadar}
+            tyreStrategyPredictions={state.tyreStrategyPredictions}
             teamRadioClips={teamRadioClips}
             selectedDrivers={selectedDrivers}
             onToggleDriver={toggleDriver}

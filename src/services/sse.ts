@@ -25,6 +25,7 @@ import {
   TimingStatsInfo,
   TopThreeInfo,
   TrackStatus,
+  TyreStrategyPredictionWire,
   Weather,
 } from "../types/raceMode";
 
@@ -69,6 +70,7 @@ export interface RaceModeEventMap {
   RADIO_CLIP_READY: { row_id: number };
   RADIO_TRANSCRIPT_READY: { row_id: number };
   RADIO_ANALYSIS_READY: { row_id: number };
+  TYRE_STRATEGY_PREDICTION: { driver_number: number; prediction: TyreStrategyPredictionWire };
 }
 
 export type RaceModeEventName = keyof RaceModeEventMap;

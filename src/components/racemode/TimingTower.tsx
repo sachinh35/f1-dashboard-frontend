@@ -1,8 +1,17 @@
 import React from "react";
 import { getRosterEntry } from "../../data/driverRoster";
-import { BattleRadarAlert, DriverTiming, TeamRadioClip, TimingAppDataInfo, TimingStatsInfo } from "../../types/raceMode";
+import {
+  BattleRadarAlert,
+  DriverTiming,
+  StintEntry,
+  TeamRadioClip,
+  TimingAppDataInfo,
+  TimingStatsInfo,
+  TyreStrategyPredictionWire,
+} from "../../types/raceMode";
 import BattleRadarIndicator from "./BattleRadarIndicator";
 import RadioIndicator from "./RadioIndicator";
+import TyreStintIndicator from "./TyreStintIndicator";
 
 interface TimingTowerProps {
   drivers: Record<string, DriverTiming>;
@@ -11,6 +20,10 @@ interface TimingTowerProps {
   selectedDrivers: number[];
   onToggleDriver: (driverNumber: number) => void;
   battleRadar: Record<string, BattleRadarAlert>;
+  /** Gemini-predicted remaining tyre strategy per driver, race mode only - see
+   * utils/tyre_strategy_prediction.py. Absent key = no prediction yet (e.g. before the
+   * driver's first completed lap). Ignored entirely during qualifying. */
+  tyreStrategyPredictions: Record<string, TyreStrategyPredictionWire>;
   teamRadioClips: TeamRadioClip[];
   /** Qualifying shows each driver's session/segment-best lap (F1's own feed already
    * excludes deleted laps from BestLapTime - see SessionState.qualifying_part) instead of
@@ -37,18 +50,28 @@ function clipsByDriver(clips: TeamRadioClip[]): Record<number, TeamRadioClip[]> 
   return result;
 }
 
-/** Every compound used this session, oldest first, deduplicated so a run of stints on the
- * same compound (F1 can issue a new stint index for a fresh set of the same compound, e.g.
- * soft/soft/soft) collapses to one entry - only a genuine change of compound (e.g.
- * medium/soft/soft -> medium, soft) produces a new entry, matching what "has this driver
- * changed tyres" actually means. */
-function compoundHistory(info: TimingAppDataInfo | undefined): string[] {
+/** Every stint this session, oldest first.
+ *
+ * Qualifying dedupes a run of stints on the same compound (F1 can issue a new stint index
+ * for a fresh set of the same compound, e.g. soft/soft/soft) down to one entry - only a
+ * genuine change of compound matters there, and lap counts per stint aren't meaningful
+ * (qualifying runs are a handful of laps on one set, not a strategy to review).
+ *
+ * Race mode shows every stint as its own entry, including repeat pit stops onto the same
+ * compound (e.g. soft -> hard -> hard is two separate stops, not one) - see the hover
+ * tooltip built from `laps` in the caller, which is what actually needs each stint kept
+ * distinct. */
+function compoundHistory(info: TimingAppDataInfo | undefined, isQualifying: boolean): StintEntry[] {
   if (!info?.Stints) return [];
-  const raw = Object.keys(info.Stints)
+  const stints = Object.keys(info.Stints)
     .map(Number)
     .sort((a, b) => a - b)
-    .map((n) => (info.Stints![String(n)]?.Compound || "unknown").toLowerCase());
-  return raw.filter((compound, i) => i === 0 || compound !== raw[i - 1]);
+    .map((n): StintEntry => ({
+      compound: (info.Stints![String(n)]?.Compound || "unknown").toLowerCase(),
+      laps: info.Stints![String(n)]?.TotalLaps,
+    }));
+  if (!isQualifying) return stints;
+  return stints.filter((s, i) => i === 0 || s.compound !== stints[i - 1].compound);
 }
 
 function lapTimeClass(lap: { Value?: string; OverallFastest?: boolean; PersonalFastest?: boolean } | undefined): string {
@@ -73,6 +96,13 @@ function formatGap(seconds: number): string {
   return seconds === 0 ? "-" : `+${seconds.toFixed(3)}`;
 }
 
+/** Race-only: toggle between "Gap" (to the race leader) and "Interval" (to the car directly
+ * ahead) - both are on-track race concepts F1 never sends during qualifying (see the
+ * GapToLeader/IntervalToPositionAhead comment below), so this toggle is meaningless and
+ * hidden there. Local to the component - purely a display choice, nothing else in RaceMode
+ * needs to know which mode is currently shown. */
+type RaceGapMode = "leader" | "interval";
+
 const TimingTower: React.FC<TimingTowerProps> = ({
   drivers,
   timingAppData,
@@ -80,11 +110,13 @@ const TimingTower: React.FC<TimingTowerProps> = ({
   selectedDrivers,
   onToggleDriver,
   battleRadar,
+  tyreStrategyPredictions,
   teamRadioClips,
   isQualifying,
   eliminatedDrivers,
   qualifyingGaps,
 }) => {
+  const [raceGapMode, setRaceGapMode] = React.useState<RaceGapMode>("leader");
   const eliminatedSet = new Set(eliminatedDrivers);
   const rows = Object.entries(drivers)
     .map(([driverStr, timing]) => ({ driverNumber: Number(driverStr), timing }))
@@ -105,9 +137,28 @@ const TimingTower: React.FC<TimingTowerProps> = ({
         <span />
         <span />
         <span />
-        <span className="gap" title={isQualifying ? "Gap to the session's fastest lap so far" : "Gap to the race leader"}>
-          Gap
-        </span>
+        {isQualifying ? (
+          <span className="gap" title="Gap to the session's fastest lap so far">
+            Gap
+          </span>
+        ) : (
+          <span
+            className="gap gap-toggle"
+            role="button"
+            tabIndex={0}
+            title={
+              raceGapMode === "leader"
+                ? "Gap to the race leader - click to show interval to the car ahead instead"
+                : "Interval to the car directly ahead - click to show gap to the race leader instead"
+            }
+            onClick={(e) => {
+              e.stopPropagation();
+              setRaceGapMode((m) => (m === "leader" ? "interval" : "leader"));
+            }}
+          >
+            {raceGapMode === "leader" ? "Gap" : "Int"}
+          </span>
+        )}
         <span />
         <span />
         <span className="mono" style={{ textAlign: "right" }}>
@@ -128,7 +179,7 @@ const TimingTower: React.FC<TimingTowerProps> = ({
       </div>
       {rows.map(({ driverNumber, timing }) => {
         const roster = getRosterEntry(driverNumber);
-        const compounds = compoundHistory(timingAppData[String(driverNumber)]);
+        const compounds = compoundHistory(timingAppData[String(driverNumber)], isQualifying);
         const speedTrap = timingStats[String(driverNumber)]?.BestSpeeds?.ST?.Value;
         const selected = selectedDrivers.includes(driverNumber);
         const displayedLap = isQualifying ? timing.BestLapTime : timing.LastLapTime;
@@ -145,7 +196,9 @@ const TimingTower: React.FC<TimingTowerProps> = ({
           ? qualifyingGapSeconds !== undefined
             ? formatGap(qualifyingGapSeconds)
             : undefined
-          : timing.GapToLeader;
+          : raceGapMode === "leader"
+            ? timing.GapToLeader
+            : timing.IntervalToPositionAhead?.Value;
         const eliminated = isQualifying && eliminatedSet.has(driverNumber);
 
         return (
@@ -176,18 +229,32 @@ const TimingTower: React.FC<TimingTowerProps> = ({
                 <span className={`sector mono ${sectorClass(sectors["2"])}`}>{sectors["2"]?.Value || "-"}</span>
               </>
             )}
-            <span className="tyre-history" title={`Tyres used this session: ${compounds.join(", ") || "unknown"}`}>
-              {compounds.length > 0 ? (
-                compounds.map((compound, i) => (
-                  <span
-                    key={i}
-                    className={`tyre-chip-mini ${compound}${i === compounds.length - 1 ? " current" : ""}`}
-                  >
-                    {compound !== "unknown" ? compound[0].toUpperCase() : "?"}
-                  </span>
-                ))
+            <span
+              className={`tyre-history${isQualifying ? " tyre-history-qualifying" : ""}`}
+              title={
+                isQualifying
+                  ? `Tyres used this session: ${compounds.map((s) => s.compound).join(", ") || "unknown"}`
+                  : undefined
+              }
+            >
+              {isQualifying ? (
+                compounds.length > 0 ? (
+                  compounds.map((stint, i) => (
+                    <span
+                      key={i}
+                      className={`tyre-chip-mini ${stint.compound}${i === compounds.length - 1 ? " current" : ""}`}
+                    >
+                      {stint.compound !== "unknown" ? stint.compound[0].toUpperCase() : "?"}
+                    </span>
+                  ))
+                ) : (
+                  <span className="tyre-chip-mini unknown">?</span>
+                )
               ) : (
-                <span className="tyre-chip-mini unknown">?</span>
+                <TyreStintIndicator
+                  stints={compounds}
+                  prediction={tyreStrategyPredictions[String(driverNumber)]}
+                />
               )}
             </span>
             <span className="speed-trap mono">{speedTrap ?? "-"}</span>

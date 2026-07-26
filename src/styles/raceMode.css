@@ -171,7 +171,7 @@
 /* ---- timing tower ---- */
 .tower-row {
   display: grid;
-  grid-template-columns: 24px 30px 1fr 60px 22px 20px 60px 66px 40px 40px;
+  grid-template-columns: 24px 30px 1fr 60px 22px 20px 60px 96px 40px 40px;
   align-items: center;
   gap: 8px;
   padding: 6px 4px;
@@ -194,6 +194,14 @@
 .tower-row.tower-header .gap,
 .tower-row.tower-header .speed-trap {
   color: var(--text-faint);
+}
+.tower-row.tower-header .gap-toggle {
+  cursor: pointer;
+  user-select: none;
+}
+.tower-row.tower-header .gap-toggle:hover,
+.tower-row.tower-header .gap-toggle:focus-visible {
+  color: var(--teal, #4fd1c5);
 }
 .tower-row:last-child {
   border-bottom: none;
@@ -275,6 +283,11 @@
   justify-content: flex-end;
   gap: 3px;
   flex-wrap: nowrap;
+  position: relative;
+}
+/* Only qualifying's static (non-popover) chip row needs clipping against the column edge -
+   race mode's TyreStintIndicator popover must be free to render outside the cell's bounds. */
+.tyre-history-qualifying {
   overflow: hidden;
 }
 .tyre-chip-mini {
@@ -327,6 +340,140 @@
   color: var(--text-faint);
   border: 1px solid var(--line-800);
 }
+
+/* ---- tyre stint popover (race mode only) ---- */
+.tyre-stint-badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  cursor: default;
+  outline: none;
+}
+.tyre-stint-popover {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 20;
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--panel-900);
+  border: 1px solid var(--line-800);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  cursor: default;
+  white-space: nowrap;
+}
+.tyre-stint-popover-head {
+  font-size: 11px;
+  color: var(--text-lo);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.tyre-stint-popover-bar {
+  display: flex;
+  align-items: stretch;
+  width: 200px;
+  height: 40px;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--line-800);
+}
+.tyre-stint-segment {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 24px;
+  border-right: 1px solid rgba(0, 0, 0, 0.35);
+  font-family: "DIN Condensed", "Arial Narrow", sans-serif;
+}
+.tyre-stint-segment:last-child {
+  border-right: none;
+}
+.tyre-stint-segment-compound {
+  font-size: 12px;
+  font-weight: 700;
+}
+.tyre-stint-segment-laps {
+  font-size: 9px;
+  font-family: ui-monospace, monospace;
+  opacity: 0.85;
+}
+.tyre-stint-segment.soft {
+  background: #4a1418;
+  color: #ff6b6b;
+}
+.tyre-stint-segment.medium {
+  background: #4a3a10;
+  color: #f2c94c;
+}
+.tyre-stint-segment.hard {
+  background: #2a2f38;
+  color: #e7ebf1;
+}
+.tyre-stint-segment.intermediate {
+  background: #123a1c;
+  color: #52e252;
+}
+.tyre-stint-segment.wet {
+  background: #0f2a4a;
+  color: #64c4ff;
+}
+.tyre-stint-segment.unknown {
+  background: #262f3d;
+  color: var(--text-faint);
+}
+
+/* ---- predicted strategy (Gemini) - dashed/muted, always reads as a forecast, not fact ---- */
+.tyre-stint-popover-head.predicted {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+.tyre-stint-predicted-badge {
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: var(--teal, #4fd1c5);
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  padding: 1px 4px;
+  opacity: 0.9;
+}
+.tyre-stint-popover-bar.predicted {
+  border-style: dashed;
+  border-color: var(--line-700, var(--line-800));
+  opacity: 0.75;
+}
+.tyre-stint-segment.predicted {
+  filter: saturate(0.6);
+}
+.tyre-stint-predicted-summary {
+  font-size: 10.5px;
+  color: var(--text-lo);
+  line-height: 1.4;
+  white-space: normal;
+  max-width: 200px;
+}
+.tyre-stint-predicted-summary.faint {
+  color: var(--text-faint);
+  font-style: italic;
+}
+.tyre-stint-predicted-footnote {
+  font-size: 9px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 .tyre-chip {
   width: 20px;
   height: 20px;
