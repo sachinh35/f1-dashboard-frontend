@@ -199,6 +199,22 @@ export const startSimulation = async (request?: SimulateStreamRequest): Promise<
     return response.data;
 };
 
+export interface TokenStatusResponse {
+    valid: boolean;
+    reason?: string;
+    expires_at?: string;
+}
+
+export const getF1TvTokenStatus = async (): Promise<TokenStatusResponse> => {
+    const response = await axios.get<TokenStatusResponse>(`${API_BASE_URL}/f1tv-token/status`);
+    return response.data;
+};
+
+export const updateF1TvToken = async (token: string): Promise<TokenStatusResponse> => {
+    const response = await axios.post<TokenStatusResponse>(`${API_BASE_URL}/f1tv-token`, { token });
+    return response.data;
+};
+
 export interface TeamDriverPoolEntry {
     team_name: string;
     driver_number: number | null;

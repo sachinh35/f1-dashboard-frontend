@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getYears, getRacesForYear, getSessionResults, getSessionLapData, getSessionStints, getSessionRaceControlEvents, LapData, Stint, RaceControlEvent, startLiveStream, startSimulation, attachLiveStream, ConfirmedRosterEntry } from '../services/api';
+import { getYears, getRacesForYear, getSessionResults, getSessionLapData, getSessionStints, getSessionRaceControlEvents, LapData, Stint, RaceControlEvent, startLiveStream, startSimulation, attachLiveStream, getF1TvTokenStatus, ConfirmedRosterEntry } from '../services/api';
 import {
     Box,
     Grid,
@@ -39,6 +39,7 @@ import ShowChartIcon from '@mui/icons-material/ShowChart';
 import LiveTvIcon from '@mui/icons-material/LiveTv';
 import LapComparisonChart from './LapComparisonChart';
 import ConfirmRosterDialog from './ConfirmRosterDialog';
+import UpdateTokenDialog from './UpdateTokenDialog';
 import { Race, EnrichedF1SessionResult } from '../types';
 import { formatDuration } from '../utils/formatting';
 import { getCountryFlagEmoji, getCountryName } from '../utils/countryMapping';
@@ -75,6 +76,9 @@ const Dashboard = () => {
     const [streamMessage, setStreamMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
     const [rosterDialogOpen, setRosterDialogOpen] = useState(false);
     const [rosterDialogAction, setRosterDialogAction] = useState<'live' | 'simulate' | 'attach' | null>(null);
+    const [tokenDialogOpen, setTokenDialogOpen] = useState(false);
+    const [tokenDialogReason, setTokenDialogReason] = useState<string | null>(null);
+    const [pendingConfirmedRoster, setPendingConfirmedRoster] = useState<ConfirmedRosterEntry[] | null>(null);
 
     const navigate = useNavigate();
 
@@ -106,50 +110,84 @@ const Dashboard = () => {
         setRosterDialogAction(null);
     };
 
+    const runStartLiveStream = async (confirmedRoster: ConfirmedRosterEntry[]) => {
+        try {
+            setStreamingLoading(true);
+            setStreamMessage(null);
+
+            // Step 1: Start the stream on the backend (backend handles auth using saved token)
+            const response = await startLiveStream(undefined, undefined, undefined, confirmedRoster);
+
+            setStreaming(true);
+            setStreamMessage({
+                type: 'success',
+                text: `Live stream started! Stream ID: ${response.stream_id}. Log file: ${response.log_file}`
+            });
+
+            // Redirect to live stream page
+            navigate(`/live-stream/${response.stream_id}`);
+
+        } catch (error: any) {
+            console.error('Error starting live stream:', error);
+            let errorMessage = 'Failed to start live stream.';
+
+            if (error.response) {
+                if (error.response.status === 400 || error.response.status === 401) {
+                    errorMessage = 'Authentication required. Please run "uv run python auth_helper.py" in the backend directory to authenticate with F1 TV Pro.';
+                } else if (error.response.data?.detail) {
+                    errorMessage = error.response.data.detail;
+                }
+            } else if (error.message) {
+                errorMessage = error.message;
+            }
+
+            setStreamMessage({
+                type: 'error',
+                text: errorMessage
+            });
+            setStreaming(false);
+        } finally {
+            setStreamingLoading(false);
+        }
+    };
+
+    const handleTokenValidated = () => {
+        setTokenDialogOpen(false);
+        const roster = pendingConfirmedRoster;
+        setPendingConfirmedRoster(null);
+        if (roster) {
+            runStartLiveStream(roster);
+        }
+    };
+
     const handleRosterConfirmed = async (confirmedRoster: ConfirmedRosterEntry[]) => {
         const action = rosterDialogAction;
         setRosterDialogOpen(false);
         setRosterDialogAction(null);
 
         if (action === 'live') {
+            // Gate the real live-stream path on a valid, non-expired F1TV token - a
+            // missing/expired token used to fail silently (CarData.z/Position.z just
+            // never showed up, no error anywhere). Simulate/attach don't need this:
+            // simulate replays a saved log, attach hooks into an already-running
+            // capture that handles its own token separately.
+            let status;
             try {
-                setStreamingLoading(true);
-                setStreamMessage(null);
-
-                // Step 1: Start the stream on the backend (backend handles auth using saved token)
-                const response = await startLiveStream(undefined, undefined, undefined, confirmedRoster);
-
-                setStreaming(true);
-                setStreamMessage({
-                    type: 'success',
-                    text: `Live stream started! Stream ID: ${response.stream_id}. Log file: ${response.log_file}`
-                });
-
-                // Redirect to live stream page
-                navigate(`/live-stream/${response.stream_id}`);
-
-            } catch (error: any) {
-                console.error('Error starting live stream:', error);
-                let errorMessage = 'Failed to start live stream.';
-
-                if (error.response) {
-                    if (error.response.status === 400 || error.response.status === 401) {
-                        errorMessage = 'Authentication required. Please run "uv run python auth_helper.py" in the backend directory to authenticate with F1 TV Pro.';
-                    } else if (error.response.data?.detail) {
-                        errorMessage = error.response.data.detail;
-                    }
-                } else if (error.message) {
-                    errorMessage = error.message;
-                }
-
-                setStreamMessage({
-                    type: 'error',
-                    text: errorMessage
-                });
-                setStreaming(false);
-            } finally {
-                setStreamingLoading(false);
+                status = await getF1TvTokenStatus();
+            } catch (error) {
+                console.error('Error checking F1TV token status:', error);
+                setStreamMessage({ type: 'error', text: 'Failed to check F1TV token status. Please try again.' });
+                return;
             }
+
+            if (!status.valid) {
+                setPendingConfirmedRoster(confirmedRoster);
+                setTokenDialogReason(status.reason ?? null);
+                setTokenDialogOpen(true);
+                return;
+            }
+
+            await runStartLiveStream(confirmedRoster);
         } else if (action === 'simulate') {
             try {
                 setStreamingLoading(true);
@@ -487,6 +525,13 @@ const Dashboard = () => {
                 onClose={handleRosterDialogClose}
                 onConfirm={handleRosterConfirmed}
                 title={rosterDialogAction === 'simulate' ? 'Confirm Lineup for Simulation' : 'Confirm Lineup Before Going Live'}
+            />
+
+            <UpdateTokenDialog
+                open={tokenDialogOpen}
+                onClose={() => setTokenDialogOpen(false)}
+                onValidated={handleTokenValidated}
+                reason={tokenDialogReason}
             />
 
             <Snackbar
