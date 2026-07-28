@@ -21,6 +21,29 @@ interface Bounds {
   maxY: number;
 }
 
+/**
+ * Pure coordinate-transform: maps a world-space (F1 Position.z) point into
+ * canvas pixel space, given the accumulated trail bounds and canvas size.
+ * Kept side-effect free so it can be unit tested directly rather than by
+ * pixel-diffing canvas output - same pattern as TelemetryLab's scaleToBand.
+ * Y is flipped (canvas grows downward, track telemetry grows upward).
+ */
+export function worldToCanvas(
+  point: { x: number; y: number },
+  bounds: Bounds,
+  width: number,
+  height: number,
+  padding: number
+): { x: number; y: number } {
+  const spanX = bounds.maxX - bounds.minX || 1;
+  const spanY = bounds.maxY - bounds.minY || 1;
+  const scale = Math.min((width - padding * 2) / spanX, (height - padding * 2) / spanY);
+  return {
+    x: padding + (point.x - bounds.minX) * scale,
+    y: height - padding - (point.y - bounds.minY) * scale,
+  };
+}
+
 const TrackMap: React.FC<TrackMapProps> = ({ positionsRef, trailRef, selectedDrivers }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const boundsRef = useRef<Bounds>({ minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity });
@@ -69,10 +92,9 @@ const TrackMap: React.FC<TrackMapProps> = ({ positionsRef, trailRef, selectedDri
         const spanX = bounds.maxX - bounds.minX || 1;
         const spanY = bounds.maxY - bounds.minY || 1;
         const padding = 24;
-        const scale = Math.min((w - padding * 2) / spanX, (h - padding * 2) / spanY);
-
-        const toCanvasX = (x: number) => padding + (x - bounds.minX) * scale;
-        const toCanvasY = (y: number) => h - padding - (y - bounds.minY) * scale;
+        const toCanvas = (p: { x: number; y: number }) => worldToCanvas(p, bounds, w, h, padding);
+        const toCanvasX = (x: number) => toCanvas({ x, y: 0 }).x;
+        const toCanvasY = (y: number) => toCanvas({ x: 0, y }).y;
 
         // Track outline: each driver's accumulated path, drawn as a thin,
         // low-opacity connected line. Overlapping laps/drivers reinforce the
@@ -94,7 +116,8 @@ const TrackMap: React.FC<TrackMapProps> = ({ positionsRef, trailRef, selectedDri
           ctx.stroke();
         }
 
-        // Live cars, on top of the track outline.
+        // Live cars, on top of the track outline - each marker labeled with the
+        // driver's 3-letter code so cars are identifiable at a glance, not just by color.
         for (const [driverStr, pos] of positionEntries) {
           const driverNumber = Number(driverStr);
           const roster = getRosterEntry(driverNumber);
@@ -111,6 +134,11 @@ const TrackMap: React.FC<TrackMapProps> = ({ positionsRef, trailRef, selectedDri
             ctx.strokeStyle = "#ffffff";
             ctx.stroke();
           }
+
+          ctx.font = selected ? "bold 11px -apple-system, sans-serif" : "10px -apple-system, sans-serif";
+          ctx.textAlign = "center";
+          ctx.fillStyle = selected ? "#ffffff" : "rgba(238, 242, 247, 0.85)";
+          ctx.fillText(roster.tla, cx, cy - (selected ? 11 : 9));
         }
       } else {
         ctx.fillStyle = "#5b6472";
