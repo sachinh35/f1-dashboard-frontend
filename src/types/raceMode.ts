@@ -24,6 +24,10 @@ export interface DriverTiming {
     string,
     { Value?: string; OverallFastest?: boolean; PersonalFastest?: boolean; Segments?: Record<string, { Status?: number }> }
   >;
+  /** The driver's lap count at the moment Sectors last changed - race mode only, shown as a
+   * small "as of lap N" marker since sector splits update independently of NumberOfLaps and
+   * can otherwise look like they belong to whatever lap is currently displayed elsewhere. */
+  SectorsLap?: number;
   Speeds?: Record<string, { Value?: string; OverallFastest?: boolean; PersonalFastest?: boolean }>;
   InPit?: boolean;
   PitOut?: boolean;

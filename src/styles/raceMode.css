@@ -171,7 +171,7 @@
 /* ---- timing tower ---- */
 .tower-row {
   display: grid;
-  grid-template-columns: 24px 30px 1fr 60px 22px 20px 60px 96px 40px 40px;
+  grid-template-columns: 24px 30px 1fr 60px 22px 20px 60px 52px 52px 52px 28px 96px 40px 40px;
   align-items: center;
   gap: 8px;
   padding: 6px 4px;
@@ -276,6 +276,11 @@
 }
 .sector.plain {
   color: var(--text-lo);
+}
+.sector-lap-marker {
+  text-align: left;
+  font-size: 9px;
+  color: var(--text-faint);
 }
 .tyre-history {
   display: flex;
@@ -719,6 +724,120 @@
   height: 2px;
   display: inline-block;
 }
+
+/* ---- compare widgets (generalized Telemetry Compare - CompareWidget.tsx) ---- */
+/* "+ Add Compare" sits inline in the panel's own .rm-panel-label header, matching the
+ * existing label-with-trailing-control convention (see .rm-live-pill / .gap-toggle). */
+.add-compare-btn {
+  font-family: "DIN Condensed", "Arial Narrow", sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-size: 11px;
+  color: var(--text-lo);
+  background: transparent;
+  border: 1px solid var(--line-800);
+  border-radius: 4px;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+.add-compare-btn:hover,
+.add-compare-btn:focus-visible {
+  color: var(--teal);
+  border-color: var(--teal);
+}
+
+/* One widget = one metric, one row - stacked instances inside the Telemetry Compare panel. */
+.compare-widget + .compare-widget {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-800);
+}
+.compare-widget-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.compare-widget-select {
+  font-family: ui-monospace, monospace;
+  font-size: 11.5px;
+  color: var(--text-hi);
+  background: var(--panel-900);
+  border: 1px solid var(--line-800);
+  border-radius: 4px;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+.compare-widget-select:hover,
+.compare-widget-select:focus-visible {
+  border-color: var(--teal);
+}
+.compare-widget-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  line-height: 1;
+  font-size: 14px;
+  color: var(--text-faint);
+  background: transparent;
+  border: 1px solid var(--line-800);
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0;
+}
+.compare-widget-remove:hover,
+.compare-widget-remove:focus-visible {
+  color: #ff6b6b;
+  border-color: #ff6b6b;
+}
+/* Single-row canvas (one metric per widget) - sized so three stacked default widgets
+ * (Speed/Throttle/Brake) land close to the old single 3-band panel's total height, plus
+ * the small per-widget header/legend chrome each instance now carries. */
+.rm-compare-canvas {
+  width: 100%;
+  height: 82px;
+  display: block;
+}
+/* Wraps the canvas so the event-marker overlay (pit/tyre/penalty - CompareWidget.tsx) can be
+ * absolutely positioned on top of it. The markers themselves are real DOM elements (not
+ * canvas pixels) purely so they can carry a native, hoverable `title` tooltip - same pattern
+ * as .tyre-stint-badge/.sector-lap-marker elsewhere in this file. */
+.rm-compare-canvas-wrap {
+  position: relative;
+}
+/* Invisible until hovered - a persistent row of icons across every plotted lap read as
+ * clutter (confirmed feedback), so these render nothing by default. The padding (not a
+ * bigger font) is what makes them findable with the mouse: it enlarges the hoverable hit
+ * area around each point without enlarging what's actually visible at rest. */
+.rm-event-marker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 7px;
+  cursor: pointer;
+  pointer-events: auto;
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.85);
+  user-select: none;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+.rm-event-marker:hover,
+.rm-event-marker:focus-visible {
+  opacity: 1;
+}
+.rm-event-marker-event {
+  font-size: 11px;
+}
+.rm-event-marker-penalty {
+  font-size: 12px;
+}
 .rm-driver-select {
   display: flex;
   gap: 6px;
@@ -819,6 +938,12 @@
 }
 .rc-item .m {
   color: var(--text-hi);
+}
+.rc-item .rc-lap {
+  color: var(--text-faint);
+  flex: none;
+  width: 26px;
+  font-size: 11px;
 }
 .rc-item .cat {
   flex: none;

@@ -621,4 +621,91 @@ describe("TimingTower", () => {
       expect(screen.getByText("Speed Trap")).toBeInTheDocument();
     });
   });
+
+  describe("race mode sector times", () => {
+    it("renders per-sector times with fastest-sector coloring in race mode too", () => {
+      render(
+        <TimingTower
+          drivers={{
+            "3": {
+              Position: "1",
+              LastLapTime: { Value: "1:20.000" },
+              Sectors: {
+                "0": { Value: "26.391", PersonalFastest: true },
+                "1": { Value: "30.000", OverallFastest: true },
+                "2": { Value: "23.609" },
+              },
+              SectorsLap: 12,
+            },
+          }}
+          timingAppData={{}}
+          timingStats={{}}
+          selectedDrivers={[]}
+          onToggleDriver={vi.fn()}
+          battleRadar={{}}
+          tyreStrategyPredictions={{}}
+          teamRadioClips={[]}
+          isQualifying={false}
+          eliminatedDrivers={[]}
+          qualifyingGaps={{}}
+        />
+      );
+      const s1 = screen.getByText("26.391");
+      const s2 = screen.getByText("30.000");
+      expect(s1.className).toContain("green");
+      expect(s2.className).toContain("purple");
+      expect(screen.getByText("23.609")).toBeInTheDocument();
+    });
+
+    it("shows a tiny lap marker next to race-mode sector times, since sectors update independently of the lap counter", () => {
+      render(
+        <TimingTower
+          drivers={{
+            "3": {
+              Position: "1",
+              Sectors: { "0": { Value: "26.391" } },
+              SectorsLap: 12,
+            },
+          }}
+          timingAppData={{}}
+          timingStats={{}}
+          selectedDrivers={[]}
+          onToggleDriver={vi.fn()}
+          battleRadar={{}}
+          tyreStrategyPredictions={{}}
+          teamRadioClips={[]}
+          isQualifying={false}
+          eliminatedDrivers={[]}
+          qualifyingGaps={{}}
+        />
+      );
+      const marker = screen.getByText("L12");
+      expect(marker.title).toMatch(/as of lap 12/i);
+    });
+
+    it("omits the lap marker in qualifying mode", () => {
+      render(
+        <TimingTower
+          drivers={{
+            "3": {
+              Position: "1",
+              Sectors: { "0": { Value: "26.391" } },
+              SectorsLap: 12,
+            },
+          }}
+          timingAppData={{}}
+          timingStats={{}}
+          selectedDrivers={[]}
+          onToggleDriver={vi.fn()}
+          battleRadar={{}}
+          tyreStrategyPredictions={{}}
+          teamRadioClips={[]}
+          isQualifying={true}
+          eliminatedDrivers={[]}
+          qualifyingGaps={{}}
+        />
+      );
+      expect(screen.queryByText("L12")).not.toBeInTheDocument();
+    });
+  });
 });

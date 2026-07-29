@@ -89,8 +89,6 @@ const TrackMap: React.FC<TrackMapProps> = ({ positionsRef, trailRef, selectedDri
       }
 
       if (trailDrivers.length > 0 && Number.isFinite(bounds.minX)) {
-        const spanX = bounds.maxX - bounds.minX || 1;
-        const spanY = bounds.maxY - bounds.minY || 1;
         const padding = 24;
         const toCanvas = (p: { x: number; y: number }) => worldToCanvas(p, bounds, w, h, padding);
         const toCanvasX = (x: number) => toCanvas({ x, y: 0 }).x;

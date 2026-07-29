@@ -41,6 +41,25 @@ describe("RaceControlFeed", () => {
     expect(screen.getByText("GREEN LIGHT")).toBeInTheDocument();
   });
 
+  it("renders a lap marker when the entry carries a Lap number", () => {
+    render(
+      <RaceControlFeed
+        messages={{ "1": { Utc: "2025-11-30T15:57:04", Category: "Flag", Message: "GREEN LIGHT", Lap: 44 } }}
+      />
+    );
+    const marker = screen.getByText("L44");
+    expect(marker.title).toMatch(/lap 44/i);
+  });
+
+  it("omits the lap marker when the entry has no Lap number", () => {
+    render(
+      <RaceControlFeed
+        messages={{ "1": { Utc: "2025-11-30T15:57:04", Category: "Flag", Message: "GREEN LIGHT" } }}
+      />
+    );
+    expect(screen.queryByText(/^L\d+$/)).not.toBeInTheDocument();
+  });
+
   it("sorts entries newest-first by message index", () => {
     render(
       <RaceControlFeed

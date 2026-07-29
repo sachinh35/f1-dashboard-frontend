@@ -164,13 +164,10 @@ const TimingTower: React.FC<TimingTowerProps> = ({
         <span className="mono" style={{ textAlign: "right" }}>
           {isQualifying ? "Best" : "Last Lap"}
         </span>
-        {isQualifying && (
-          <>
-            <span className="mono" style={{ textAlign: "right" }}>S1</span>
-            <span className="mono" style={{ textAlign: "right" }}>S2</span>
-            <span className="mono" style={{ textAlign: "right" }}>S3</span>
-          </>
-        )}
+        <span className="mono" style={{ textAlign: "right" }}>S1</span>
+        <span className="mono" style={{ textAlign: "right" }}>S2</span>
+        <span className="mono" style={{ textAlign: "right" }}>S3</span>
+        {!isQualifying && <span />}
         <span />
         <span className="speed-trap" title="Speed Trap - top speed recorded at the track's speed-trap sensor">
           Speed Trap
@@ -222,12 +219,20 @@ const TimingTower: React.FC<TimingTowerProps> = ({
               <RadioIndicator clips={radioClipsByDriver[driverNumber] ?? []} />
             </span>
             <span className={`lap mono ${lapTimeClass(displayedLap)}`}>{displayedLap?.Value || "-"}</span>
-            {isQualifying && (
-              <>
-                <span className={`sector mono ${sectorClass(sectors["0"])}`}>{sectors["0"]?.Value || "-"}</span>
-                <span className={`sector mono ${sectorClass(sectors["1"])}`}>{sectors["1"]?.Value || "-"}</span>
-                <span className={`sector mono ${sectorClass(sectors["2"])}`}>{sectors["2"]?.Value || "-"}</span>
-              </>
+            <span className={`sector mono ${sectorClass(sectors["0"])}`}>{sectors["0"]?.Value || "-"}</span>
+            <span className={`sector mono ${sectorClass(sectors["1"])}`}>{sectors["1"]?.Value || "-"}</span>
+            <span className={`sector mono ${sectorClass(sectors["2"])}`}>{sectors["2"]?.Value || "-"}</span>
+            {!isQualifying && (
+              <span
+                className="sector-lap-marker mono"
+                title={
+                  timing.SectorsLap != null
+                    ? `Sector times as of lap ${timing.SectorsLap} - may be a lap behind if this driver hasn't crossed a split since`
+                    : "No sector times yet this session"
+                }
+              >
+                {timing.SectorsLap != null ? `L${timing.SectorsLap}` : ""}
+              </span>
             )}
             <span
               className={`tyre-history${isQualifying ? " tyre-history-qualifying" : ""}`}

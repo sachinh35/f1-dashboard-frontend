@@ -39,6 +39,11 @@ const RaceControlFeed: React.FC<RaceControlFeedProps> = ({ messages }) => {
       {entries.map(({ index, entry }) => (
         <div key={index} className="rc-item">
           <span className="t mono">{formatTime(entry.Utc)}</span>
+          {entry.Lap != null && (
+            <span className="rc-lap mono" title={`Fired on lap ${entry.Lap}`}>
+              L{entry.Lap}
+            </span>
+          )}
           <span className={`cat ${categoryClass(entry.Category)}`}>{entry.Category ?? "Info"}</span>
           <span className="m">{entry.Message ?? entry.Status ?? ""}</span>
         </div>

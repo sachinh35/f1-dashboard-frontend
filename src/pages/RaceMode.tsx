@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import CompareWidget from "../components/racemode/CompareWidget";
 import LapDeltaChart from "../components/racemode/LapDeltaChart";
 import RaceControlFeed from "../components/racemode/RaceControlFeed";
 import SessionClock from "../components/racemode/SessionClock";
 import TeamRadioPanel from "../components/racemode/TeamRadioPanel";
-import TelemetryLab from "../components/racemode/TelemetryLab";
 import TimingTower from "../components/racemode/TimingTower";
 import TrackMap from "../components/racemode/TrackMap";
 import TrackStatusBanner from "../components/racemode/TrackStatusBanner";
@@ -31,6 +31,21 @@ import {
   TyreStrategyPredictionWire,
   Weather,
 } from "../types/raceMode";
+import {
+  addDriverEvent,
+  CompareMetric,
+  DiscreteCompareMetric,
+  DriverEventMarker,
+  extractPenaltyDriverNumber,
+  formatPenaltyLabel,
+  formatPitStopLabel,
+  formatTyreChangeLabel,
+  isPenaltyMessage,
+  LapMetricPoint,
+  parseTimeToSeconds,
+  sectorIndexForMetric,
+  upsertLapMetricPoint,
+} from "../utils/compareMetrics";
 
 function applyRosterWire(wire: Record<string, DriverRosterWireEntry>): void {
   setLiveRoster(
@@ -78,10 +93,29 @@ const INITIAL_STATE: SlowState = {
   qualifyingGaps: {},
 };
 
+interface CompareWidgetConfig {
+  id: string;
+  metric: CompareMetric;
+}
+
+// Default view (first load) preserves today's fixed 3-band layout: Speed/Throttle/Brake,
+// in that order, so nothing regresses for an existing user.
+const DEFAULT_COMPARE_WIDGETS: CompareWidgetConfig[] = [
+  { id: "compare-0", metric: "speed" },
+  { id: "compare-1", metric: "throttle" },
+  { id: "compare-2", metric: "brake" },
+];
+
 const RaceMode: React.FC = () => {
   const { streamId } = useParams<{ streamId: string }>();
   const [state, setState] = useState<SlowState>(INITIAL_STATE);
   const [selectedDrivers, setSelectedDrivers] = useState<number[]>([]);
+  // Regular React state (not a ref) - changes only when the user adds/removes/reconfigures a
+  // widget, a rare, human-paced event, unlike the histories/telemetry these widgets read.
+  const [compareWidgets, setCompareWidgets] = useState<CompareWidgetConfig[]>(DEFAULT_COMPARE_WIDGETS);
+  // Monotonic counter backing each new widget's React key - a ref (not state) since it's an
+  // implementation detail that should never itself trigger a re-render.
+  const nextCompareWidgetId = useRef(DEFAULT_COMPARE_WIDGETS.length);
   const [radioRefreshSignal, setRadioRefreshSignal] = useState(0);
   const [teamRadioClips, setTeamRadioClips] = useState<TeamRadioClip[]>([]);
   const [connected, setConnected] = useState(false);
@@ -120,6 +154,43 @@ const RaceMode: React.FC = () => {
   // since F1's feed never sends circuit geometry (see TrackMap.tsx).
   const trailRef = useRef<Record<string, { x: number; y: number }[]>>({});
   const MAX_TRAIL_POINTS_PER_DRIVER = 2000;
+  // Per-metric, per-driver lap history for the "discrete" Compare Widget metrics (sector
+  // times, lap time) - these only produce a new definitive value once per lap (or per
+  // sector) per driver, from TimingData rather than CarData.z, so unlike telemetryRef they
+  // can't just be read live off the current sample - see the TimingData handler below and
+  // CompareWidget.tsx. A ref, not React state, for the same reason as telemetryRef: this can
+  // be touched many times per second across ~20 drivers during a fast replay.
+  const lapMetricHistoryRef = useRef<Record<DiscreteCompareMetric, Record<number, LapMetricPoint[]>>>({
+    sector1: {},
+    sector2: {},
+    sector3: {},
+    lapTime: {},
+  });
+  // Each driver's latest known NumberOfLaps, kept in lockstep with telemetryRef so
+  // CompareWidget's continuous (speed/throttle/brake) charts can tag each buffered sample
+  // with the lap it was captured on - telemetry itself carries no lap number, only
+  // TimingData does, and the two arrive as independent, asynchronous SSE streams. A ref
+  // (not state) for the same reason as telemetryRef: read every animation frame, not
+  // through a render.
+  const currentLapRef = useRef<Record<number, number>>({});
+  // Pit stop / tyre change / penalty markers accumulated across the whole session, per
+  // driver - see CompareWidget.tsx's event-marker overlay. A ref, not React state, for the
+  // same reason as the others above: touched from three independent SSE handlers below and
+  // read every animation frame's worth of polling inside CompareWidget, not through a render.
+  const driverEventsRef = useRef<Record<number, DriverEventMarker[]>>({});
+  // "Last known NumberOfPitStops per driver" - TimingData resends each driver's full current
+  // resolved state on every message (not a delta), so a pit-stop event must only fire when
+  // this count genuinely increases from what we last saw, never from "count > 0" (which
+  // would refire on every single unrelated TimingData message once a driver has pitted).
+  const lastSeenPitStopsRef = useRef<Record<number, number>>({});
+  // "Highest TimingAppDataInfo.Stints index seen per driver" - a stint key we haven't seen
+  // before means a tyre change happened (see TimingAppData handler below). Seeded from the
+  // initial snapshot so the driver's starting tyre isn't itself misreported as a "change".
+  const highestStintIndexRef = useRef<Record<number, number>>({});
+  // Race control message keys already scanned for a penalty - RaceControlMessages resends
+  // full state, and message keys are stable, so this prevents re-scanning (and thus
+  // re-detecting, were addDriverEvent's own dedup not already a backstop) the same entry.
+  const seenRaceControlKeysRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (!streamId) return;
@@ -128,11 +199,38 @@ const RaceMode: React.FC = () => {
     telemetryRef.current = {};
     positionsRef.current = {};
     trailRef.current = {};
+    lapMetricHistoryRef.current = { sector1: {}, sector2: {}, sector3: {}, lapTime: {} };
+    currentLapRef.current = {};
+    driverEventsRef.current = {};
+    lastSeenPitStopsRef.current = {};
+    highestStintIndexRef.current = {};
+    seenRaceControlKeysRef.current = new Set();
     clearLiveRoster();
     setTeamRadioClips([]);
     setConnected(true);
     setHasPositionData(false);
     setHasTelemetryData(false);
+
+    // Shared between the snapshot handler's one-time historical backfill (below) and the
+    // live RaceControlMessages handler further down - a message's driver/lap/text are fully
+    // known from the entry alone (unlike pit stops/stints, whose *history* isn't
+    // reconstructable from a snapshot's cumulative-count-only fields), so it's safe to
+    // extract genuine penalty events from race control messages the very first time each
+    // message key is seen, whether that's in the initial snapshot or a later live message.
+    const scanRaceControlEntriesForPenalties = (entries: Record<string, RaceControlEntry>) => {
+      for (const [key, entry] of Object.entries(entries)) {
+        if (seenRaceControlKeysRef.current.has(key)) continue;
+        seenRaceControlKeysRef.current.add(key);
+        if (!entry.Message || !isPenaltyMessage(entry.Message)) continue;
+        const driverNumber = extractPenaltyDriverNumber(entry.Message);
+        if (driverNumber === null) continue;
+        addDriverEvent(driverEventsRef.current, driverNumber, {
+          lap: entry.Lap ?? 0,
+          kind: "penalty",
+          label: formatPenaltyLabel(entry.Message),
+        });
+      }
+    };
 
     const disconnect = connectRaceModeStream(streamId, {
       snapshot: (snapshot) => {
@@ -156,12 +254,88 @@ const RaceMode: React.FC = () => {
           qualifyingGaps: snapshot.qualifying_gaps ?? {},
         });
         if (snapshot.driver_roster) applyRosterWire(snapshot.driver_roster);
+
+        // Seed the pit-stop/tyre-stint "last seen" baselines from the snapshot so the first
+        // live TimingData/TimingAppData message after connecting doesn't misread "this
+        // driver already has N pit stops / stint 0" as a brand-new transition - only a
+        // genuine *increase* over this baseline counts (see the TimingData/TimingAppData
+        // handlers below). Race control messages, unlike those two, carry their own
+        // complete lap/text with each entry, so historical penalties already in the
+        // snapshot are backfilled for real rather than merely used to seed a baseline.
+        for (const [driverStr, driver] of Object.entries(snapshot.drivers)) {
+          if (typeof driver.NumberOfPitStops === "number") {
+            lastSeenPitStopsRef.current[Number(driverStr)] = driver.NumberOfPitStops;
+          }
+        }
+        for (const [driverStr, appData] of Object.entries(snapshot.timing_app_data)) {
+          if (!appData.Stints) continue;
+          const driverNumber = Number(driverStr);
+          let highest = highestStintIndexRef.current[driverNumber] ?? -1;
+          for (const stintKey of Object.keys(appData.Stints)) {
+            const stintIndex = Number(stintKey);
+            if (Number.isFinite(stintIndex) && stintIndex > highest) highest = stintIndex;
+          }
+          highestStintIndexRef.current[driverNumber] = highest;
+        }
+        scanRaceControlEntriesForPenalties(snapshot.race_control_messages);
       },
       driver_roster: (data) => {
         if (data.driver_roster) applyRosterWire(data.driver_roster);
       },
       TimingData: (data) => {
         if (data.drivers) {
+          // Each entry is the full current resolved DriverTiming for that driver (not a
+          // partial patch - see diff_to_wire), so Sectors/LastLapTime/SectorsLap/
+          // NumberOfLaps are always safe to read directly whenever present. Accumulate any
+          // new per-lap sector/lap-time values into lapMetricHistoryRef (a ref, mutated
+          // directly - see the field's own comment) alongside the existing setState merge.
+          for (const [driverStr, driver] of Object.entries(data.drivers)) {
+            const driverNumber = Number(driverStr);
+
+            if (typeof driver.NumberOfLaps === "number") {
+              currentLapRef.current[driverNumber] = driver.NumberOfLaps;
+            }
+
+            if (typeof driver.NumberOfPitStops === "number") {
+              const lastSeen = lastSeenPitStopsRef.current[driverNumber];
+              // Only a genuine increase over the last value we saw counts as "just
+              // pitted" - TimingData resends every driver's full current resolved state on
+              // every message (not a delta), so testing e.g. "> 0" here would refire this
+              // event on every unrelated message once a driver has pitted at all.
+              if (lastSeen !== undefined && driver.NumberOfPitStops > lastSeen) {
+                const lap = driver.NumberOfLaps ?? currentLapRef.current[driverNumber] ?? 0;
+                addDriverEvent(driverEventsRef.current, driverNumber, {
+                  lap,
+                  kind: "pit",
+                  label: formatPitStopLabel(lap),
+                });
+              }
+              lastSeenPitStopsRef.current[driverNumber] = driver.NumberOfPitStops;
+            }
+
+            if (driver.Sectors && typeof driver.SectorsLap === "number") {
+              (["sector1", "sector2", "sector3"] as const).forEach((metric) => {
+                const sectorIndex = sectorIndexForMetric(metric);
+                if (sectorIndex === null) return;
+                const seconds = parseTimeToSeconds(driver.Sectors?.[sectorIndex]?.Value);
+                if (seconds === null) return;
+                upsertLapMetricPoint(
+                  lapMetricHistoryRef.current[metric],
+                  driverNumber,
+                  driver.SectorsLap!,
+                  seconds
+                );
+              });
+            }
+
+            if (driver.LastLapTime && typeof driver.NumberOfLaps === "number") {
+              const seconds = parseTimeToSeconds(driver.LastLapTime.Value);
+              if (seconds !== null) {
+                upsertLapMetricPoint(lapMetricHistoryRef.current.lapTime, driverNumber, driver.NumberOfLaps, seconds);
+              }
+            }
+          }
+
           setState((prev) => ({ ...prev, drivers: { ...prev.drivers, ...data.drivers } }));
         }
         if (data.qualifying_gaps) {
@@ -189,6 +363,36 @@ const RaceMode: React.FC = () => {
       },
       TimingAppData: (data) => {
         if (data.timing_app_data) {
+          // A stint key not seen before for this driver means a tyre change happened - see
+          // highestStintIndexRef's own comment. Tyre-change messages carry no lap number of
+          // their own (unlike SectorsLap for sectors), so the best-known current lap
+          // (currentLapRef, kept up to date by the TimingData handler above) is used
+          // instead, same convention SectorsLap already uses elsewhere in this file.
+          for (const [driverStr, appData] of Object.entries(data.timing_app_data)) {
+            if (!appData.Stints) continue;
+            const driverNumber = Number(driverStr);
+            const highestSeen = highestStintIndexRef.current[driverNumber] ?? -1;
+            let newHighest = highestSeen;
+
+            for (const [stintKey, stint] of Object.entries(appData.Stints)) {
+              const stintIndex = Number(stintKey);
+              if (!Number.isFinite(stintIndex)) continue;
+              if (stintIndex > highestSeen) {
+                const lap = currentLapRef.current[driverNumber] ?? 0;
+                const compound = (stint.Compound ?? "unknown").toLowerCase();
+                addDriverEvent(driverEventsRef.current, driverNumber, {
+                  lap,
+                  kind: "tyre",
+                  label: formatTyreChangeLabel(stint.Compound ?? "unknown", lap),
+                  compound,
+                });
+              }
+              if (stintIndex > newHighest) newHighest = stintIndex;
+            }
+
+            highestStintIndexRef.current[driverNumber] = newHighest;
+          }
+
           setState((prev) => ({ ...prev, timingAppData: { ...prev.timingAppData, ...data.timing_app_data } }));
         }
       },
@@ -234,6 +438,7 @@ const RaceMode: React.FC = () => {
       },
       RaceControlMessages: (data) => {
         if (data.race_control_messages) {
+          scanRaceControlEntriesForPenalties(data.race_control_messages);
           setState((prev) => ({
             ...prev,
             raceControlMessages: { ...prev.raceControlMessages, ...data.race_control_messages },
@@ -297,6 +502,19 @@ const RaceMode: React.FC = () => {
       if (prev.length >= 4) return [...prev.slice(1), driverNumber];
       return [...prev, driverNumber];
     });
+  };
+
+  const addCompareWidget = () => {
+    const id = `compare-${nextCompareWidgetId.current++}`;
+    setCompareWidgets((prev) => [...prev, { id, metric: "speed" }]);
+  };
+
+  const updateCompareWidgetMetric = (id: string, metric: CompareMetric) => {
+    setCompareWidgets((prev) => prev.map((w) => (w.id === id ? { ...w, metric } : w)));
+  };
+
+  const removeCompareWidget = (id: string) => {
+    setCompareWidgets((prev) => prev.filter((w) => w.id !== id));
   };
 
   const meetingName = state.sessionInfo.Meeting?.Name;
@@ -370,12 +588,32 @@ const RaceMode: React.FC = () => {
             <TrackStatusBanner trackStatus={state.trackStatus} weather={state.weather} />
           </div>
 
-          {hasTelemetryData && (
-            <div className="rm-panel">
-              <div className="rm-panel-label">Telemetry Compare</div>
-              <TelemetryLab telemetryRef={telemetryRef} selectedDrivers={selectedDrivers} />
+          {/* Not gated on hasTelemetryData - unlike the old fixed-3-band TelemetryLab,
+              some of this panel's metrics (sector times, lap time) come from TimingData,
+              not CarData.z, and must work even in a session where CarData.z/Position.z
+              never arrive at all (a separate, already-diagnosed F1TV auth/entitlement
+              issue - see hasTelemetryData's own comment). */}
+          <div className="rm-panel">
+            <div className="rm-panel-label">
+              <span>Telemetry Compare</span>
+              <button className="add-compare-btn" type="button" onClick={addCompareWidget}>
+                + Add Compare
+              </button>
             </div>
-          )}
+            {compareWidgets.map((w) => (
+              <CompareWidget
+                key={w.id}
+                metric={w.metric}
+                onMetricChange={(m) => updateCompareWidgetMetric(w.id, m)}
+                onRemove={() => removeCompareWidget(w.id)}
+                selectedDrivers={selectedDrivers}
+                telemetryRef={telemetryRef}
+                lapMetricHistoryRef={lapMetricHistoryRef}
+                currentLapRef={currentLapRef}
+                driverEventsRef={driverEventsRef}
+              />
+            ))}
+          </div>
 
           <div className="rm-panel rm-panel-fill">
             <div className="rm-panel-label">Team Radio</div>
