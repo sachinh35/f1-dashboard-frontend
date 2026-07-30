@@ -10,7 +10,7 @@ import {
   LapMetricPoint,
   formatMetricValue,
   isDiscreteMetric,
-  pitAffectedLaps,
+  tukeyFences,
 } from "../../utils/compareMetrics";
 
 interface CompareWidgetProps {
@@ -99,11 +99,12 @@ export function lapPointToCanvas(
 }
 
 /**
- * Pure: the position a lap-metric point should actually render at, clamped to the domain's
- * top edge when its value exceeds `bounds.maxValue` (e.g. a pit in/out lap deliberately
- * excluded from the scaling calculation - see computeLapValueBounds) rather than plotted
- * off-canvas or dragging the axis out to fit it. `isOffScale` tells the caller to style this
- * point distinctly (muted/dashed) instead of like a genuine value at that height.
+ * Pure: the position a lap-metric point should actually render at, clamped to whichever edge
+ * of `bounds` its value falls outside of (e.g. a pit stop, a Safety Car lap, or any other
+ * statistical outlier excluded from the scaling calculation - see computeLapValueBounds)
+ * rather than plotted off-canvas or dragging the axis out to fit it. `isOffScale` tells the
+ * caller to style this point distinctly (muted/dashed) instead of like a genuine value at that
+ * height.
  */
 export function clampedLapPointToCanvas(
   point: LapMetricPoint,
@@ -112,10 +113,11 @@ export function clampedLapPointToCanvas(
   height: number,
   padding: number
 ): { x: number; y: number; isOffScale: boolean } {
-  const isOffScale = point.value > bounds.maxValue;
-  const clampedValue = isOffScale ? bounds.maxValue : point.value;
+  const isAboveScale = point.value > bounds.maxValue;
+  const isBelowScale = point.value < bounds.minValue;
+  const clampedValue = isAboveScale ? bounds.maxValue : isBelowScale ? bounds.minValue : point.value;
   const { x, y } = lapPointToCanvas(point.lap, clampedValue, bounds, width, height, padding);
-  return { x, y, isOffScale };
+  return { x, y, isOffScale: isAboveScale || isBelowScale };
 }
 
 /**
@@ -125,20 +127,19 @@ export function clampedLapPointToCanvas(
  * DOM event-marker overlay effect below can share exactly one bounds calculation instead of
  * two copies drifting apart - same rationale as scaleToBand/lapPointToCanvas.
  *
- * `driverEvents` (optional - the same shape as driverEventsRef.current) is used to exclude
- * pit in/out laps from the *value* range only (never the lap range - a pit lap is still a
- * perfectly normal lap number to plot on the X axis). A pit stop routinely spikes that one
- * lap's sector/lap time well above normal racing pace; without this, that single outlier lap
- * would drag the whole Y-axis scale out to fit it and flatten every other driver's detail
- * down to a thin band. Excluded points are still plotted (see clampedLapPointToCanvas below),
- * just clamped to the resulting tighter scale instead of stretching it. Falls back to
- * including every point if excluding pit laps would leave no data to scale from at all (e.g.
- * a driver whose only laps so far are pit laps).
+ * Excludes each driver's own statistical outliers (see tukeyFences) from the *value* range
+ * only (never the lap range - an outlier lap is still a perfectly normal lap number to plot on
+ * the X axis) before computing min/max. A pit stop (or a Safety Car lap, or any other one-off
+ * slowdown) routinely spikes that one lap's sector/lap time well above normal racing pace;
+ * without this, that single outlier lap would drag the whole Y-axis scale out to fit it and
+ * flatten every other driver's detail down to a thin band. Excluded points are still plotted
+ * (see clampedLapPointToCanvas above), just clamped to the resulting tighter scale instead of
+ * stretching it. Falls back to including every point if excluding outliers would leave no data
+ * to scale from at all (e.g. a driver whose only laps so far are all outliers).
  */
 export function computeLapValueBounds(
   perDriverHistory: Record<number, LapMetricPoint[]>,
-  drivers: number[],
-  driverEvents: Record<number, DriverEventMarker[]> = {}
+  drivers: number[]
 ): LapValueBounds | null {
   let minLap = Infinity;
   let maxLap = -Infinity;
@@ -151,11 +152,12 @@ export function computeLapValueBounds(
     const points = perDriverHistory[driverNumber];
     if (!points || points.length === 0) continue;
     anyPoints = true;
-    const pitLaps = pitAffectedLaps(driverEvents[driverNumber]);
+    const fences = tukeyFences(points.map((p) => p.value));
     for (const p of points) {
       if (p.lap < minLap) minLap = p.lap;
       if (p.lap > maxLap) maxLap = p.lap;
-      if (pitLaps.has(p.lap)) continue;
+      const isOutlier = fences !== null && (p.value < fences.lower || p.value > fences.upper);
+      if (isOutlier) continue;
       anyScalingPoints = true;
       if (p.value < minValue) minValue = p.value;
       if (p.value > maxValue) maxValue = p.value;
@@ -164,7 +166,7 @@ export function computeLapValueBounds(
 
   if (!anyPoints) return null;
 
-  // Nothing but pit laps to go on (yet) - fall back to scaling from every point rather than
+  // Nothing but outliers to go on (yet) - fall back to scaling from every point rather than
   // returning a broken (Infinity-bounded) range.
   if (!anyScalingPoints) {
     for (const driverNumber of drivers) {
@@ -457,15 +459,28 @@ const CompareWidget: React.FC<CompareWidgetProps> = ({
 
       const plotted = points.map((p) => clampedLapPointToCanvas(p, bounds, w, h, DISCRETE_PADDING));
 
-      if (plotted.length >= 2) {
+      // Segments touching an off-scale (pit-affected) point are drawn muted/dashed rather
+      // than full-color - otherwise the line still shoots up to the clamped value at full
+      // opacity, recreating the same visual spike the axis-scale exclusion above was meant
+      // to avoid, just at a fixed height instead of dragging the whole chart out.
+      for (let i = 1; i < plotted.length; i++) {
+        const prev = plotted[i - 1];
+        const curr = plotted[i];
+        const muted = prev.isOffScale || curr.isOffScale;
+        ctx.save();
         ctx.beginPath();
-        plotted.forEach(({ x, y }, i) => {
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        });
+        ctx.moveTo(prev.x, prev.y);
+        ctx.lineTo(curr.x, curr.y);
+        if (muted) {
+          ctx.globalAlpha = 0.35;
+          ctx.setLineDash([3, 3]);
+          ctx.lineWidth = 1.2;
+        } else {
+          ctx.lineWidth = 1.6;
+        }
         ctx.strokeStyle = color;
-        ctx.lineWidth = 1.6;
         ctx.stroke();
+        ctx.restore();
       }
 
       // Off-scale points (pit in/out laps excluded from the axis scale, see
@@ -541,7 +556,7 @@ const CompareWidget: React.FC<CompareWidgetProps> = ({
       } else if (discrete) {
         const discreteMetric = metric as DiscreteCompareMetric;
         const perDriverHistory = lapMetricHistoryRef.current[discreteMetric];
-        const bounds = computeLapValueBounds(perDriverHistory, drivers, driverEventsRef.current);
+        const bounds = computeLapValueBounds(perDriverHistory, drivers);
 
         if (!bounds) {
           drawPlaceholder("Waiting for lap data…", h);
@@ -619,7 +634,7 @@ const CompareWidget: React.FC<CompareWidgetProps> = ({
       if (discrete) {
         const discreteMetric = metric as DiscreteCompareMetric;
         const perDriverHistory = lapMetricHistoryRef.current[discreteMetric];
-        const bounds = computeLapValueBounds(perDriverHistory, drivers, driverEventsRef.current);
+        const bounds = computeLapValueBounds(perDriverHistory, drivers);
         if (bounds) {
           drivers.forEach((driverNumber) => {
             const points = perDriverHistory[driverNumber];

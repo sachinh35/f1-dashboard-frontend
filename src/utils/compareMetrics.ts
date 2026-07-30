@@ -159,20 +159,52 @@ export function addDriverEvent(
 }
 
 /**
- * Which lap numbers a driver pitted on, per their recorded pit-stop events - a pit in/out lap
- * commonly spikes that lap's sector/lap time well above normal racing pace (pit lane speed
- * limits, the stop itself), which would otherwise drag a comparison chart's whole Y-axis
- * scale out to fit one outlier lap and flatten everyone else's detail. Used to exclude those
- * laps from axis auto-scaling (see CompareWidget.tsx's computeLapValueBounds) while still
- * plotting the point itself, clamped, rather than hiding it.
+ * Below this many samples, `tukeyFences` refuses to compute a fence at all (returns null)
+ * rather than one derived from too little data to be meaningful - e.g. 2 points give a "normal
+ * range" of exactly those 2 values, so a 3rd point of any kind would register as an "outlier".
  */
-export function pitAffectedLaps(events: DriverEventMarker[] | undefined): Set<number> {
-  const laps = new Set<number>();
-  if (!events) return laps;
-  for (const event of events) {
-    if (event.kind === "pit") laps.add(event.lap);
-  }
-  return laps;
+export const MIN_SAMPLE_FOR_OUTLIER_FENCES = 5;
+
+/** Linear-interpolation-between-closest-ranks quantile, the same convention most stats
+ * packages default to (e.g. numpy's default "linear" method). `sortedValues` must already be
+ * sorted ascending - callers own that so a shared sort isn't redone per quantile call. */
+function quantile(sortedValues: number[], q: number): number {
+  const pos = (sortedValues.length - 1) * q;
+  const base = Math.floor(pos);
+  const rest = pos - base;
+  const next = sortedValues[base + 1];
+  return next === undefined ? sortedValues[base] : sortedValues[base] + rest * (next - sortedValues[base]);
+}
+
+export interface OutlierFences {
+  lower: number;
+  upper: number;
+}
+
+/**
+ * Pure: Tukey's fences - the standard IQR-based "mild outlier" bounds [Q1 - 1.5*IQR, Q3 +
+ * 1.5*IQR] for a set of values. Value-based rather than event-based on purpose: matching a
+ * pit/tyre-change *event* to the exact lap number its sector/lap-time spike lands on turned out
+ * to be fragile in practice (see git history on this file - the "pit" event's lap, the "tyre"
+ * event's lap, and the lapTime metric's own inflated lap were all off by one from each other,
+ * for three different message-timing reasons, and there's no guarantee that's the last such
+ * mismatch). Detecting the outlier from its *value* instead sidesteps needing to know which lap
+ * a slowdown is attributable to, or why it happened at all - a pit stop, a Safety Car/VSC
+ * period, a spin, or anything else that inflates a lap/sector time will get caught the same way.
+ *
+ * Returns null (meaning "don't filter, not enough data yet") when there are fewer than
+ * MIN_SAMPLE_FOR_OUTLIER_FENCES values, or when the IQR is 0 (every value seen so far happens
+ * to be identical) - a fence computed from either would be degenerate and flag ordinary points
+ * as outliers.
+ */
+export function tukeyFences(values: number[]): OutlierFences | null {
+  if (values.length < MIN_SAMPLE_FOR_OUTLIER_FENCES) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const q1 = quantile(sorted, 0.25);
+  const q3 = quantile(sorted, 0.75);
+  const iqr = q3 - q1;
+  if (iqr <= 0) return null;
+  return { lower: q1 - 1.5 * iqr, upper: q3 + 1.5 * iqr };
 }
 
 /**

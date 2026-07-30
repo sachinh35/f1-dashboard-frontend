@@ -223,35 +223,62 @@ describe("computeLapValueBounds", () => {
     expect(bounds!.maxLap).toBe(1);
   });
 
-  it("excludes a pit-affected lap's value from the scale, but keeps it in the lap range", () => {
+  it("excludes a statistical outlier's value from the scale, but keeps it in the lap range", () => {
+    const history: Record<number, LapMetricPoint[]> = {
+      44: [
+        { lap: 1, value: 28.0 },
+        { lap: 2, value: 27.5 },
+        { lap: 3, value: 46.2 }, // pit lane transit - a huge outlier
+        { lap: 4, value: 27.9 },
+        { lap: 5, value: 27.7 },
+        { lap: 6, value: 28.1 },
+        { lap: 7, value: 27.6 },
+      ],
+    };
+    const bounds = computeLapValueBounds(history, [44]);
+    expect(bounds!.minLap).toBe(1);
+    expect(bounds!.maxLap).toBe(7); // the outlier lap still counts for the X range
+    // value range comes only from the 6 clustered laps (27.5-28.1) - 46.2 never touches it
+    expect(bounds!.maxValue).toBeLessThan(30);
+  });
+
+  it("does not filter anything below the minimum sample size - not enough data yet to tell a " +
+    "genuine outlier from ordinary early-race noise, so a spike still widens the scale", () => {
     const history: Record<number, LapMetricPoint[]> = {
       44: [
         { lap: 1, value: 28 },
         { lap: 2, value: 27.5 },
-        { lap: 3, value: 46.2 }, // pit lane transit - a huge outlier
-        { lap: 4, value: 27.9 },
+        { lap: 3, value: 46.2 }, // only 3 points total - below MIN_SAMPLE_FOR_OUTLIER_FENCES
       ],
     };
-    const events: Record<number, DriverEventMarker[]> = {
-      44: [{ lap: 3, kind: "pit", label: "Pit stop (lap 3)" }],
-    };
-    const bounds = computeLapValueBounds(history, [44], events);
-    expect(bounds!.minLap).toBe(1);
-    expect(bounds!.maxLap).toBe(4); // pit lap still counts for the X range
-    // value range comes only from laps 1, 2, 4 (27.5-28) - the 46.2s pit lap never touches it
-    expect(bounds!.maxValue).toBeLessThan(30);
+    const bounds = computeLapValueBounds(history, [44]);
+    expect(bounds!.maxValue).toBeGreaterThan(40);
   });
 
-  it("falls back to scaling from every point when a driver's laps are all pit-affected", () => {
+  it("computes each driver's outlier fences from their own history independently", () => {
     const history: Record<number, LapMetricPoint[]> = {
-      44: [{ lap: 1, value: 46.2 }],
+      // driver 44: tight, fast pace with one pit-stop outlier
+      44: [
+        { lap: 1, value: 28.0 },
+        { lap: 2, value: 27.5 },
+        { lap: 3, value: 27.9 },
+        { lap: 4, value: 27.7 },
+        { lap: 5, value: 28.1 },
+        { lap: 6, value: 46.2 },
+      ],
+      // driver 16: consistently slower pace, but with no outliers of their own
+      16: [
+        { lap: 1, value: 33.0 },
+        { lap: 2, value: 32.5 },
+        { lap: 3, value: 32.9 },
+        { lap: 4, value: 32.7 },
+        { lap: 5, value: 33.1 },
+      ],
     };
-    const events: Record<number, DriverEventMarker[]> = {
-      44: [{ lap: 1, kind: "pit", label: "Pit stop (lap 1)" }],
-    };
-    const bounds = computeLapValueBounds(history, [44], events);
-    expect(bounds).not.toBeNull();
-    expect(bounds!.maxValue).toBeGreaterThan(46);
+    const bounds = computeLapValueBounds(history, [44, 16]);
+    // driver 16's genuinely-slower-but-normal pace should still set the top of the range
+    expect(bounds!.maxValue).toBeGreaterThan(33);
+    expect(bounds!.maxValue).toBeLessThan(40);
   });
 });
 
@@ -268,6 +295,12 @@ describe("clampedLapPointToCanvas", () => {
     const result = clampedLapPointToCanvas({ lap: 3, value: 46.2 }, bounds, 100, 50, 10);
     expect(result.isOffScale).toBe(true);
     expect(result).toMatchObject(lapPointToCanvas(3, bounds.maxValue, bounds, 100, 50, 10));
+  });
+
+  it("clamps a point below minValue to the bottom edge and flags it off-scale", () => {
+    const result = clampedLapPointToCanvas({ lap: 3, value: 5 }, bounds, 100, 50, 10);
+    expect(result.isOffScale).toBe(true);
+    expect(result).toMatchObject(lapPointToCanvas(3, bounds.minValue, bounds, 100, 50, 10));
   });
 });
 

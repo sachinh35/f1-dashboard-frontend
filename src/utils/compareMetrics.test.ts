@@ -10,9 +10,9 @@ import {
   isDiscreteMetric,
   isPenaltyMessage,
   parseTimeToSeconds,
-  pitAffectedLaps,
   sectorIndexForMetric,
   titleCaseCompound,
+  tukeyFences,
   upsertLapMetricPoint,
   LapMetricPoint,
 } from "./compareMetrics";
@@ -151,30 +151,36 @@ describe("addDriverEvent", () => {
   });
 });
 
-describe("pitAffectedLaps", () => {
-  it("returns an empty set when there are no events", () => {
-    expect(pitAffectedLaps(undefined).size).toBe(0);
-    expect(pitAffectedLaps([]).size).toBe(0);
+describe("tukeyFences", () => {
+  it("returns null when there are fewer than MIN_SAMPLE_FOR_OUTLIER_FENCES values", () => {
+    expect(tukeyFences([29.1, 29.3, 29.4, 29.5])).toBeNull();
   });
 
-  it("collects only pit-kind events' lap numbers", () => {
-    const events: DriverEventMarker[] = [
-      { lap: 12, kind: "pit", label: "Pit stop (lap 12)" },
-      { lap: 12, kind: "tyre", label: "Pitted for Medium (lap 12)" },
-      { lap: 40, kind: "penalty", label: "5 SECOND PENALTY" },
-    ];
-    const laps = pitAffectedLaps(events);
-    expect(laps.has(12)).toBe(true);
-    expect(laps.size).toBe(1);
+  it("returns null when the IQR is 0 (every value identical so far)", () => {
+    expect(tukeyFences([30, 30, 30, 30, 30])).toBeNull();
   });
 
-  it("collects multiple distinct pit laps (a driver with more than one stop)", () => {
-    const events: DriverEventMarker[] = [
-      { lap: 12, kind: "pit", label: "Pit stop (lap 12)" },
-      { lap: 34, kind: "pit", label: "Pit stop (lap 34)" },
-    ];
-    const laps = pitAffectedLaps(events);
-    expect(laps).toEqual(new Set([12, 34]));
+  it("computes the standard [Q1 - 1.5*IQR, Q3 + 1.5*IQR] fences", () => {
+    const values = [29.1, 29.3, 29.4, 29.5, 29.6, 29.8, 30.0];
+    const fences = tukeyFences(values);
+    expect(fences).not.toBeNull();
+    // Q1=29.35, Q3=29.7, IQR=0.35 (linear-interpolation quantile convention)
+    expect(fences!.lower).toBeCloseTo(28.825);
+    expect(fences!.upper).toBeCloseTo(30.225);
+  });
+
+  it("flags a pit-stop-magnitude spike as outside the fences", () => {
+    const values = [29.1, 29.3, 29.4, 29.5, 29.6, 29.8, 30.0, 48.2];
+    const fences = tukeyFences(values);
+    expect(fences).not.toBeNull();
+    expect(48.2).toBeGreaterThan(fences!.upper);
+  });
+
+  it("does NOT flag ordinary racing-pace variance as outside the fences", () => {
+    const values = [29.1, 29.3, 29.4, 29.5, 29.6, 29.8, 30.0, 30.2];
+    const fences = tukeyFences(values);
+    expect(fences).not.toBeNull();
+    expect(30.2).toBeLessThan(fences!.upper);
   });
 });
 
