@@ -1,7 +1,8 @@
 import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import CompareWidget, {
+import CompareWidget from "./CompareWidget";
+import {
   clampedLapPointToCanvas,
   computeLapValueBounds,
   detectLapBoundaryIndices,
@@ -9,7 +10,7 @@ import CompareWidget, {
   lapLabelStep,
   lapPointToCanvas,
   scaleToBand,
-} from "./CompareWidget";
+} from "./compareWidgetMath";
 import { DiscreteCompareMetric, DriverEventMarker, LapMetricPoint } from "../../utils/compareMetrics";
 import { TelemetrySample } from "../../types/raceMode";
 

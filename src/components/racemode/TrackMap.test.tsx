@@ -1,6 +1,7 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import TrackMap, { worldToCanvas } from "./TrackMap";
+import TrackMap from "./TrackMap";
+import { worldToCanvas } from "./trackMapMath";
 import { PositionSample } from "../../types/raceMode";
 
 describe("worldToCanvas", () => {

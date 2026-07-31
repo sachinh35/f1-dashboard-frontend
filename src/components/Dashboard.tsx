@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { isAxiosError } from 'axios';
 import { getYears, getRacesForYear, getSessionResults, getSessionLapData, getSessionStints, getSessionRaceControlEvents, LapData, Stint, RaceControlEvent, startLiveStream, startSimulation, attachLiveStream, getF1TvTokenStatus, ConfirmedRosterEntry } from '../services/api';
 import {
     Box,
@@ -52,7 +53,12 @@ const Dashboard = () => {
     const [locations, setLocations] = useState<string[]>([]);
     const [locationCountryMap, setLocationCountryMap] = useState<Map<string, string>>(new Map());
     const [selectedLocation, setSelectedLocation] = useState<string>('');
-    const [sessions, setSessions] = useState<Race[]>([]);
+    // Fully derivable from races/selectedLocation - no need to sync it into its own state via
+    // an effect (see the effect below, which used to do exactly that).
+    const sessions = useMemo(
+        () => races.filter((race) => race.location === selectedLocation),
+        [races, selectedLocation]
+    );
     const [selectedSessionKey, setSelectedSessionKey] = useState<number | null>(null);
     const [sessionResults, setSessionResults] = useState<EnrichedF1SessionResult[]>([]);
     const [loading, setLoading] = useState(false);
@@ -127,17 +133,17 @@ const Dashboard = () => {
             // Redirect to live stream page
             navigate(`/live-stream/${response.stream_id}`);
 
-        } catch (error: any) {
+        } catch (error) {
             console.error('Error starting live stream:', error);
             let errorMessage = 'Failed to start live stream.';
 
-            if (error.response) {
-                if (error.response.status === 400 || error.response.status === 401) {
+            if (isAxiosError(error)) {
+                if (error.response?.status === 400 || error.response?.status === 401) {
                     errorMessage = 'Authentication required. Please run "uv run python auth_helper.py" in the backend directory to authenticate with F1 TV Pro.';
-                } else if (error.response.data?.detail) {
+                } else if (error.response?.data?.detail) {
                     errorMessage = error.response.data.detail;
                 }
-            } else if (error.message) {
+            } else if (error instanceof Error) {
                 errorMessage = error.message;
             }
 
@@ -194,7 +200,7 @@ const Dashboard = () => {
                 const response = await startSimulation({ confirmed_roster: confirmedRoster });
                 setStreaming(true);
                 navigate(`/live-stream/${response.stream_id}`);
-            } catch (error: any) {
+            } catch (error) {
                 console.error('Error starting simulation:', error);
                 setStreamMessage({
                     type: 'error',
@@ -223,15 +229,15 @@ const Dashboard = () => {
 
                 navigate(`/live-stream/${response.stream_id}`);
 
-            } catch (error: any) {
+            } catch (error) {
                 console.error('Error attaching to live capture:', error);
                 let errorMessage = 'Failed to attach to live capture.';
 
-                if (error.response?.status === 404) {
+                if (isAxiosError(error) && error.response?.status === 404) {
                     errorMessage = 'No live capture found. Start it from a terminal first: ./scripts/run_capture.sh <session-name>';
-                } else if (error.response?.data?.detail) {
+                } else if (isAxiosError(error) && error.response?.data?.detail) {
                     errorMessage = error.response.data.detail;
-                } else if (error.message) {
+                } else if (error instanceof Error) {
                     errorMessage = error.message;
                 }
 
@@ -278,7 +284,6 @@ const Dashboard = () => {
                 setLocationCountryMap(locationToCountry);
                 setLocations(uniqueLocations);
                 setSelectedLocation('');
-                setSessions([]);
                 setSelectedSessionKey(null);
                 setSessionResults([]);
             };
@@ -288,12 +293,14 @@ const Dashboard = () => {
 
     useEffect(() => {
         if (selectedLocation) {
-            const availableSessions = races.filter((race) => race.location === selectedLocation);
-            setSessions(availableSessions);
+            // Clears the stale session selection whenever the location filter changes -
+            // deliberate, not derivable (unlike `sessions` above, there's no single "correct"
+            // session to select for a new location, so this has to actively clear it).
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setSelectedSessionKey(null);
             setSessionResults([]);
         }
-    }, [selectedLocation, races]);
+    }, [selectedLocation]);
 
     useEffect(() => {
         if (selectedSessionKey) {
@@ -328,6 +335,9 @@ const Dashboard = () => {
             };
             fetchSessionResults();
         } else {
+            // Clears everything tied to a session when the session is deselected entirely -
+            // deliberate reset, not derivable.
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setSessionResults([]);
             setSelectedDrivers(new Set());
             setLapData([]);
@@ -401,7 +411,8 @@ const Dashboard = () => {
 
             fetchMissingLapData();
         } else if (selectedDrivers.size === 0) {
-            // No drivers selected, clear lap data and cache
+            // No drivers selected, clear lap data and cache - deliberate reset, not derivable.
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setLapData([]);
             fetchedDriversRef.current.clear();
         } else {
@@ -417,6 +428,12 @@ const Dashboard = () => {
                 fetchedDriversRef.current.delete(driverNum);
             });
         }
+        // `lapData` is read above only to check per-driver cache freshness, and this effect
+        // itself calls setLapData (functional form) on every run - listing it as a dependency
+        // would make each of those calls re-trigger the effect on its own new array reference,
+        // an infinite loop. `fetchedDriversRef` (a ref, not state) is what actually gates
+        // whether a fetch happens again.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedSessionKey, selectedDrivers]);
 
     const handleDriverSelection = (driverNumber: number) => {

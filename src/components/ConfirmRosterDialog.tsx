@@ -138,11 +138,14 @@ const ConfirmRosterDialog = ({ open, onClose, onConfirm, title }: ConfirmRosterD
 
     useEffect(() => {
         if (!open) return;
+        // Resets the dialog's own form state each time it opens - this component stays
+        // mounted (MUI's Dialog toggles visibility, not presence) across opens, so this is
+        // the only point in its lifecycle where "opening" is observable at all.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setPool(null);
         setRows([]);
         setError(null);
         fetchPool();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open]);
 
     const handleChangeClick = (rowId: string) => {
@@ -221,9 +224,14 @@ const ConfirmRosterDialog = ({ open, onClose, onConfirm, title }: ConfirmRosterD
         onConfirm(roster);
     };
 
-    // Track which team each rendered row belongs to so we can span the team
-    // name cell across that team's two seats.
-    let lastTeamName: string | null = null;
+    // Which row id is the first (topmost) for its team, so we can span the team name cell
+    // across that team's two seats - a plain pass over `rows` rather than mutating a variable
+    // during the render-time .map() below (React may render more than once per commit, e.g.
+    // StrictMode, so render-phase mutation of anything outside that single pass is unsafe).
+    const firstRowIdByTeam = new Map<string, string>();
+    for (const row of rows) {
+        if (!firstRowIdByTeam.has(row.teamName)) firstRowIdByTeam.set(row.teamName, row.id);
+    }
 
     return (
         <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
@@ -268,8 +276,7 @@ const ConfirmRosterDialog = ({ open, onClose, onConfirm, title }: ConfirmRosterD
                                 </TableHead>
                                 <TableBody>
                                     {rows.map((row) => {
-                                        const showTeamCell = row.teamName !== lastTeamName;
-                                        lastTeamName = row.teamName;
+                                        const showTeamCell = firstRowIdByTeam.get(row.teamName) === row.id;
                                         const reserves = reservesByTeam[row.teamName] ?? [];
                                         const valid = isRowValid(row);
 

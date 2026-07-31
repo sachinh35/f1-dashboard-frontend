@@ -195,6 +195,10 @@ const RaceMode: React.FC = () => {
   useEffect(() => {
     if (!streamId) return;
 
+    // Resets every piece of session state/refs when navigating between different live
+    // streams (React Router reuses this component across a param-only route change rather
+    // than remounting it) - deliberate, not derivable.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setState(INITIAL_STATE);
     telemetryRef.current = {};
     positionsRef.current = {};
@@ -493,6 +497,10 @@ const RaceMode: React.FC = () => {
   }, [sessionKey]);
 
   useEffect(() => {
+    // refetchTeamRadio only sets state after an await (see above) - genuinely async, not a
+    // synchronous effect-body setState; the linter's static analysis just can't see through
+    // the function call to confirm that.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     refetchTeamRadio();
   }, [refetchTeamRadio, radioRefreshSignal]);
 

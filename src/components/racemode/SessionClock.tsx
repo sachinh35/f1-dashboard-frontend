@@ -55,6 +55,10 @@ const SessionClock: React.FC<SessionClockProps> = ({ lapCount, extrapolatedClock
     const utcMs = extrapolatedClock.Utc ? Date.parse(extrapolatedClock.Utc) : NaN;
     const receivedAtMs = Number.isNaN(utcMs) ? Date.now() : utcMs;
     anchorRef.current = { seconds, receivedAtMs };
+    // Re-anchoring the displayed countdown to a fresh server-pushed clock value is exactly
+    // the "subscribe to an external system" case React's own effect guidelines describe as
+    // legitimate - the external system here being F1's ExtrapolatedClock feed plus wall time.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDisplayedRemaining(formatHms(seconds - (Date.now() - receivedAtMs) / 1000));
   }, [extrapolatedClock.Remaining, extrapolatedClock.Utc]);
 

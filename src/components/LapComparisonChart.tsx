@@ -1,5 +1,5 @@
 import React, { useMemo, memo, useState, useCallback } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceArea, ReferenceDot } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceArea, ReferenceDot, TooltipProps } from 'recharts';
 import { Box, Typography, Chip, IconButton, Stack, Button, Tooltip as MuiTooltip } from '@mui/material';
 import ZoomInIcon from '@mui/icons-material/ZoomIn';
 import ZoomOutIcon from '@mui/icons-material/ZoomOut';
@@ -25,8 +25,14 @@ interface DriverInfo {
     color: string;
 }
 
+type ChartTooltipPayloadEntry = NonNullable<TooltipProps<number, string>['payload']>[number];
+
+interface CustomTooltipProps extends TooltipProps<number, string> {
+    driverInfo: DriverInfo[];
+}
+
 // Custom tooltip component to show pit out lap info and compound
-const CustomTooltip = ({ active, payload, label, driverInfo }: any) => {
+const CustomTooltip = ({ active, payload, label, driverInfo }: CustomTooltipProps) => {
     if (active && payload && payload.length) {
         return (
             <Box
@@ -41,8 +47,8 @@ const CustomTooltip = ({ active, payload, label, driverInfo }: any) => {
                 <Typography variant="body2" sx={{ fontWeight: 600, mb: 1, color: '#FFFFFF' }}>
                     {label}
                 </Typography>
-                {payload.map((entry: any) => {
-                    const driverNum = parseInt(entry.dataKey.replace('driver_', '').replace('_pit_out', ''));
+                {payload.map((entry: ChartTooltipPayloadEntry) => {
+                    const driverNum = parseInt(String(entry.dataKey).replace('driver_', '').replace('_pit_out', ''));
                     const driverInfo_entry = driverInfo.find((d: DriverInfo) => d.driverNumber === driverNum);
                     const driverName = driverInfo_entry?.name || `Driver ${driverNum}`;
                     const value = entry.value;
@@ -152,8 +158,18 @@ const CustomTooltip = ({ active, payload, label, driverInfo }: any) => {
     return null;
 };
 
+/** Recharts itself types dot/shape render-prop callbacks as `(props: any) => ReactElement`
+ * (see LineDot in its own type definitions) - this is the shape this codebase actually reads
+ * out of that `any`, not a full recharts-provided type. */
+interface ChartDotRenderProps {
+    cx?: number;
+    cy?: number;
+    payload?: Record<string, unknown> & { lapNumber?: number };
+    index?: number;
+}
+
 // Custom dot renderer. Reserve ring only for pit-out. No compound ring.
-const renderPitOutDot = (driverNumber: number, driverColor: string) => (props: any) => {
+const renderPitOutDot = (driverNumber: number, driverColor: string) => (props: ChartDotRenderProps) => {
     const { cx, cy, payload, index } = props;
     const isPitOutLap = payload?.[`driver_${driverNumber}_pit_out`] || false;
     const lapNumber = payload?.lapNumber || index;
@@ -309,8 +325,11 @@ const LapComparisonChart: React.FC<LapComparisonChartProps> = ({
         setIsSelecting(false);
     }, []);
 
-    // Mouse drag-to-zoom handlers
-    const handleMouseDown = useCallback((e: any) => {
+    // Mouse drag-to-zoom handlers. Recharts passes its internal CategoricalChartState here,
+    // which isn't part of its public type exports - this is the one field actually read out
+    // of it (see e.g. LineChart's onMouseDown/onMouseMove typed as `(state, event: any) => void`
+    // in recharts' own generateCategoricalChart.d.ts).
+    const handleMouseDown = useCallback((e: { activeTooltipIndex?: number } | null) => {
         if (e && e.activeTooltipIndex != null) {
             setIsSelecting(true);
             setSelectionStartIndex(e.activeTooltipIndex);
@@ -318,7 +337,7 @@ const LapComparisonChart: React.FC<LapComparisonChartProps> = ({
         }
     }, []);
 
-    const handleMouseMove = useCallback((e: any) => {
+    const handleMouseMove = useCallback((e: { activeTooltipIndex?: number } | null) => {
         if (!isSelecting) return;
         if (e && e.activeTooltipIndex != null) {
             setSelectionEndIndex(e.activeTooltipIndex);
@@ -712,10 +731,10 @@ const LapComparisonChart: React.FC<LapComparisonChartProps> = ({
                                     x={dataPoint.lap as string}
                                     y={1}
                                     yAxisId="raceControl"
-                                    shape={(props: any) => {
+                                    shape={(props: { cx?: number; cy?: number }) => {
                                         const { cx, cy } = props;
                                         return (
-                                            <foreignObject x={cx - 10} y={cy - 10} width={20} height={20} style={{ overflow: 'visible' }}>
+                                            <foreignObject x={(cx ?? 0) - 10} y={(cy ?? 0) - 10} width={20} height={20} style={{ overflow: 'visible' }}>
                                                 <MuiTooltip
                                                     title={eventTooltipContent}
                                                     arrow
@@ -760,7 +779,7 @@ const LapComparisonChart: React.FC<LapComparisonChartProps> = ({
                                 />
                             );
                         })}
-                        <Tooltip content={(props: any) => <CustomTooltip {...props} driverInfo={driverInfo} />} />
+                        <Tooltip content={(props: TooltipProps<number, string>) => <CustomTooltip {...props} driverInfo={driverInfo} />} />
                         <Legend
                             wrapperStyle={{ paddingTop: '20px' }}
                             formatter={(value: string) => {

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import ConfirmRosterDialog from "./ConfirmRosterDialog";
-import { getTeamDriverPool, GetTeamDriverPoolResponse } from "../services/api";
+import { ConfirmedRosterEntry, getTeamDriverPool, GetTeamDriverPoolResponse } from "../services/api";
 
 vi.mock("../services/api", () => ({
     getTeamDriverPool: vi.fn(),
@@ -129,7 +129,7 @@ describe("ConfirmRosterDialog", () => {
         const roster = onConfirm.mock.calls[0][0];
         expect(roster).toHaveLength(22);
 
-        const edited = roster.find((entry: any) => entry.full_name === "Leonardo Fornaroli");
+        const edited = roster.find((entry: ConfirmedRosterEntry) => entry.full_name === "Leonardo Fornaroli");
         expect(edited).toEqual({
             driver_number: 50,
             tla: "FOR",
@@ -138,7 +138,7 @@ describe("ConfirmRosterDialog", () => {
             team_colour: "#F58020",
         });
 
-        const untouched = roster.find((entry: any) => entry.full_name === "Max Verstappen");
+        const untouched = roster.find((entry: ConfirmedRosterEntry) => entry.full_name === "Max Verstappen");
         expect(untouched).toEqual({
             driver_number: 3,
             tla: "VER",

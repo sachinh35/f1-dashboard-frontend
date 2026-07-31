@@ -27,6 +27,10 @@ const UpdateTokenDialog = ({ open, onClose, onValidated, reason }: UpdateTokenDi
 
     useEffect(() => {
         if (!open) return;
+        // Resets the dialog's own form state each time it opens - this component stays
+        // mounted (MUI's Dialog toggles visibility, not presence) across opens, so this is
+        // the only point in its lifecycle where "opening" is observable at all.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setPastedToken('');
         setSubmitting(false);
         setError(null);

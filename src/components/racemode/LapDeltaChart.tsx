@@ -148,6 +148,7 @@ const LapDeltaChart: React.FC<LapDeltaChartProps> = ({ sessionKey, selectedDrive
   // Default each lap number to that driver's most recently completed lap
   // whenever the selection changes, without overriding a manual edit mid-session.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (driverA != null) setLapA(lastCompletedLap(drivers[String(driverA)]));
     if (driverB != null) setLapB(lastCompletedLap(drivers[String(driverB)]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
