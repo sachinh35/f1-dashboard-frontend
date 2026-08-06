@@ -422,8 +422,7 @@ const LapComparisonChart: React.FC<LapComparisonChartProps> = ({
             <Stack
                 direction="row"
                 spacing={1}
-                alignItems="center"
-                sx={{ mb: 2, justifyContent: 'flex-end' }}
+                sx={{ alignItems: 'center', mb: 2, justifyContent: 'flex-end' }}
             >
                 <Typography variant="body2" sx={{ color: 'text.secondary', mr: 1 }}>
                     Zoom:
@@ -739,7 +738,7 @@ const LapComparisonChart: React.FC<LapComparisonChartProps> = ({
                                                     title={eventTooltipContent}
                                                     arrow
                                                     placement="top"
-                                                    componentsProps={{
+                                                    slotProps={{
                                                         tooltip: {
                                                             sx: {
                                                                 backgroundColor: 'transparent',

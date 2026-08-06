@@ -305,7 +305,7 @@ const ConfirmRosterDialog = ({ open, onClose, onConfirm, title }: ConfirmRosterD
                                                                 }
                                                                 error={!isPositiveInteger(row.driverNumberInput)}
                                                                 sx={{ width: 90 }}
-                                                                inputProps={{ 'aria-label': `${row.teamName} driver number` }}
+                                                                slotProps={{ htmlInput: { 'aria-label': `${row.teamName} driver number` } }}
                                                             />
                                                         </TableCell>
                                                         <TableCell>
@@ -317,7 +317,7 @@ const ConfirmRosterDialog = ({ open, onClose, onConfirm, title }: ConfirmRosterD
                                                                 }
                                                                 error={row.tlaInput.trim().length === 0}
                                                                 sx={{ width: 90 }}
-                                                                inputProps={{ maxLength: 3, 'aria-label': `${row.teamName} TLA` }}
+                                                                slotProps={{ htmlInput: { maxLength: 3, 'aria-label': `${row.teamName} TLA` } }}
                                                             />
                                                         </TableCell>
                                                         <TableCell>
@@ -379,8 +379,7 @@ const ConfirmRosterDialog = ({ open, onClose, onConfirm, title }: ConfirmRosterD
                                                     {row.editing && !valid && (
                                                         <Typography
                                                             variant="caption"
-                                                            display="block"
-                                                            sx={{ color: 'error.main', mt: 0.5 }}
+                                                            sx={{ display: 'block', color: 'error.main', mt: 0.5 }}
                                                         >
                                                             Number and TLA required
                                                         </Typography>

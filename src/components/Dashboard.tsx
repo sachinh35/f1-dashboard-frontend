@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { isAxiosError } from 'axios';
 import { getYears, getRacesForYear, getSessionResults, getSessionLapData, getSessionStints, getSessionRaceControlEvents, LapData, Stint, RaceControlEvent, startLiveStream, startSimulation, attachLiveStream, getF1TvTokenStatus, ConfirmedRosterEntry } from '../services/api';
 import {
@@ -465,8 +465,8 @@ const Dashboard = () => {
             px: { xs: 2, sm: 3, md: 4 }
         }}>
             <Box sx={{ mb: 4 }}>
-                <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
-                    <Stack direction="row" spacing={2} alignItems="center">
+                <Stack direction="row" spacing={2} sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                    <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
                         <SportsMotorsportsIcon sx={{ fontSize: 40, color: 'primary.main' }} />
                         <Typography variant="h1" component="h1">
                             F1 Dashboard
@@ -567,7 +567,7 @@ const Dashboard = () => {
             </Snackbar>
 
             <Grid container spacing={3} sx={{ mb: 4 }}>
-                <Grid item xs={12} sm={6} md={4}>
+                <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                     <Card elevation={0} sx={{
                         height: '100%',
                         transition: 'all 0.3s ease',
@@ -577,7 +577,7 @@ const Dashboard = () => {
                         }
                     }}>
                         <CardContent>
-                            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 2 }}>
+                            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 2 }}>
                                 <CalendarTodayIcon sx={{ color: 'primary.main', fontSize: 20 }} />
                                 <InputLabel sx={{ fontWeight: 600, color: 'text.primary' }}>
                                     Season
@@ -612,7 +612,7 @@ const Dashboard = () => {
                         </CardContent>
                     </Card>
                 </Grid>
-                <Grid item xs={12} sm={6} md={4}>
+                <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                     <Card elevation={0} sx={{
                         height: '100%',
                         transition: 'all 0.3s ease',
@@ -622,7 +622,7 @@ const Dashboard = () => {
                         }
                     }}>
                         <CardContent>
-                            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 2 }}>
+                            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 2 }}>
                                 <EmojiFlagsIcon sx={{ color: 'primary.main', fontSize: 20 }} />
                                 <InputLabel sx={{ fontWeight: 600, color: 'text.primary' }}>
                                     Location
@@ -654,7 +654,7 @@ const Dashboard = () => {
                                         const flagEmoji = countryCode ? getCountryFlagEmoji(countryCode) : null;
                                         return (
                                             <MenuItem key={location} value={location}>
-                                                <Stack direction="row" spacing={1} alignItems="center">
+                                                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                                                     {flagEmoji && (
                                                         <Typography variant="body2" sx={{ fontSize: '1.2rem' }}>
                                                             {flagEmoji}
@@ -670,7 +670,7 @@ const Dashboard = () => {
                         </CardContent>
                     </Card>
                 </Grid>
-                <Grid item xs={12} sm={6} md={4}>
+                <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                     <Card elevation={0} sx={{
                         height: '100%',
                         transition: 'all 0.3s ease',
@@ -680,7 +680,7 @@ const Dashboard = () => {
                         }
                     }}>
                         <CardContent>
-                            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 2 }}>
+                            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 2 }}>
                                 <SportsMotorsportsIcon sx={{ color: 'primary.main', fontSize: 20 }} />
                                 <InputLabel sx={{ fontWeight: 600, color: 'text.primary' }}>
                                     Session
@@ -732,7 +732,7 @@ const Dashboard = () => {
                                 <Typography variant="h2" component="h2" sx={{ mb: 0.5 }}>
                                     Session Results
                                 </Typography>
-                                <Stack direction="row" spacing={1} flexWrap="wrap">
+                                <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
                                     {selectedYear && (
                                         <Chip
                                             label={`${selectedYear}`}
@@ -786,10 +786,12 @@ const Dashboard = () => {
                                 keepMounted
                                 open={Boolean(anchorEl)}
                                 onClose={handleSettingsClose}
-                                PaperProps={{
-                                    sx: {
-                                        mt: 1,
-                                        minWidth: 200,
+                                slotProps={{
+                                    paper: {
+                                        sx: {
+                                            mt: 1,
+                                            minWidth: 200,
+                                        }
                                     }
                                 }}
                             >
@@ -877,7 +879,7 @@ const Dashboard = () => {
                                                 </TableCell>
                                                 <TableCell>
                                                     {result.country_code ? (
-                                                        <Stack direction="row" spacing={1} alignItems="center">
+                                                        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                                                             <Typography variant="body2" sx={{ fontSize: '1.2rem' }}>
                                                                 {getCountryFlagEmoji(result.country_code)}
                                                             </Typography>
@@ -963,7 +965,7 @@ const Dashboard = () => {
             {sessionResults.length > 0 && (
                 <Card elevation={0} sx={{ mt: 3 }}>
                     <CardContent>
-                        <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 3 }}>
+                        <Stack direction="row" spacing={2} sx={{ alignItems: 'center', mb: 3 }}>
                             <ShowChartIcon sx={{ color: 'primary.main', fontSize: 28 }} />
                             <Box>
                                 <Typography variant="h2" component="h2" sx={{ mb: 0.5 }}>
@@ -1008,7 +1010,7 @@ const Dashboard = () => {
                                             />
                                         }
                                         label={
-                                            <Stack direction="row" spacing={1} alignItems="center">
+                                            <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                                                 {result.country_code && (
                                                     <Typography variant="body2" sx={{ fontSize: '1rem' }}>
                                                         {getCountryFlagEmoji(result.country_code)}

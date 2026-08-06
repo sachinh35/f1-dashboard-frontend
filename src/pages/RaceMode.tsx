@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router";
 import CompareWidget from "../components/racemode/CompareWidget";
 import LapDeltaChart from "../components/racemode/LapDeltaChart";
 import RaceControlFeed from "../components/racemode/RaceControlFeed";
