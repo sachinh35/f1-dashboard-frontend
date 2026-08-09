@@ -35,7 +35,7 @@ const RaceControlFeed: React.FC<RaceControlFeedProps> = ({ messages }) => {
   }
 
   return (
-    <div>
+    <div className="rc-feed-list">
       {entries.map(({ index, entry }) => (
         <div key={index} className="rc-item">
           <span className="t mono">{formatTime(entry.Utc)}</span>

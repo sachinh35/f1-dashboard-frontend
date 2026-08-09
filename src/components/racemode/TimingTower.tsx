@@ -96,13 +96,6 @@ function formatGap(seconds: number): string {
   return seconds === 0 ? "-" : `+${seconds.toFixed(3)}`;
 }
 
-/** Race-only: toggle between "Gap" (to the race leader) and "Interval" (to the car directly
- * ahead) - both are on-track race concepts F1 never sends during qualifying (see the
- * GapToLeader/IntervalToPositionAhead comment below), so this toggle is meaningless and
- * hidden there. Local to the component - purely a display choice, nothing else in RaceMode
- * needs to know which mode is currently shown. */
-type RaceGapMode = "leader" | "interval";
-
 const TimingTower: React.FC<TimingTowerProps> = ({
   drivers,
   timingAppData,
@@ -116,7 +109,6 @@ const TimingTower: React.FC<TimingTowerProps> = ({
   eliminatedDrivers,
   qualifyingGaps,
 }) => {
-  const [raceGapMode, setRaceGapMode] = React.useState<RaceGapMode>("leader");
   const eliminatedSet = new Set(eliminatedDrivers);
   const rows = Object.entries(drivers)
     .map(([driverStr, timing]) => ({ driverNumber: Number(driverStr), timing }))
@@ -142,22 +134,14 @@ const TimingTower: React.FC<TimingTowerProps> = ({
             Gap
           </span>
         ) : (
-          <span
-            className="gap gap-toggle"
-            role="button"
-            tabIndex={0}
-            title={
-              raceGapMode === "leader"
-                ? "Gap to the race leader - click to show interval to the car ahead instead"
-                : "Interval to the car directly ahead - click to show gap to the race leader instead"
-            }
-            onClick={(e) => {
-              e.stopPropagation();
-              setRaceGapMode((m) => (m === "leader" ? "interval" : "leader"));
-            }}
-          >
-            {raceGapMode === "leader" ? "Gap" : "Int"}
-          </span>
+          <>
+            <span className="gap" title="Gap to the race leader">
+              Gap
+            </span>
+            <span className="gap" title="Interval to the car directly ahead">
+              Int
+            </span>
+          </>
         )}
         <span />
         <span />
@@ -189,13 +173,6 @@ const TimingTower: React.FC<TimingTowerProps> = ({
         // nonzero gap on the actual P1 driver. qualifyingGaps is computed backend-side
         // from BestLapTime instead - see SessionState._recompute_qualifying_gaps.
         const qualifyingGapSeconds = qualifyingGaps[String(driverNumber)];
-        const gap = isQualifying
-          ? qualifyingGapSeconds !== undefined
-            ? formatGap(qualifyingGapSeconds)
-            : undefined
-          : raceGapMode === "leader"
-            ? timing.GapToLeader
-            : timing.IntervalToPositionAhead?.Value;
         const eliminated = isQualifying && eliminatedSet.has(driverNumber);
 
         return (
@@ -211,7 +188,16 @@ const TimingTower: React.FC<TimingTowerProps> = ({
               {roster.tla}
               {eliminated && <span className="out-badge">OUT</span>}
             </span>
-            <span className="gap mono">{gap ?? "-"}</span>
+            {isQualifying ? (
+              <span className="gap mono">
+                {qualifyingGapSeconds !== undefined ? formatGap(qualifyingGapSeconds) : "-"}
+              </span>
+            ) : (
+              <>
+                <span className="gap mono">{timing.GapToLeader ?? "-"}</span>
+                <span className="gap mono">{timing.IntervalToPositionAhead?.Value ?? "-"}</span>
+              </>
+            )}
             <span className="battle-radar-slot">
               <BattleRadarIndicator alert={battleRadar[String(driverNumber)]} />
             </span>

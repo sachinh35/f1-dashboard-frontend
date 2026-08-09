@@ -260,8 +260,8 @@ describe("TimingTower", () => {
     });
   });
 
-  describe("race mode gap/interval toggle", () => {
-    it("defaults to GapToLeader and switches to IntervalToPositionAhead when the header toggle is clicked", () => {
+  describe("race mode gap/interval columns", () => {
+    it("shows GapToLeader and IntervalToPositionAhead as separate columns at the same time", () => {
       render(
         <TimingTower
           drivers={{
@@ -280,37 +280,12 @@ describe("TimingTower", () => {
         />
       );
       expect(screen.getByText("+1.234")).toBeInTheDocument();
-      expect(screen.queryByText("+0.456")).not.toBeInTheDocument();
-
-      fireEvent.click(screen.getByText("Gap"));
-
       expect(screen.getByText("+0.456")).toBeInTheDocument();
-      expect(screen.queryByText("+1.234")).not.toBeInTheDocument();
+      expect(screen.getByText("Gap")).toBeInTheDocument();
       expect(screen.getByText("Int")).toBeInTheDocument();
     });
 
-    it("clicking the header toggle does not select a driver row", () => {
-      const onToggleDriver = vi.fn();
-      render(
-        <TimingTower
-          drivers={{ "3": { Position: "1", GapToLeader: "+1.234" } }}
-          timingAppData={{}}
-          timingStats={{}}
-          selectedDrivers={[]}
-          onToggleDriver={onToggleDriver}
-          battleRadar={{}}
-          tyreStrategyPredictions={{}}
-          teamRadioClips={[]}
-          isQualifying={false}
-          eliminatedDrivers={[]}
-          qualifyingGaps={{}}
-        />
-      );
-      fireEvent.click(screen.getByText("Gap"));
-      expect(onToggleDriver).not.toHaveBeenCalled();
-    });
-
-    it("does not render a clickable toggle during qualifying", () => {
+    it("does not render the Int column during qualifying", () => {
       render(
         <TimingTower
           drivers={{ "3": { Position: "1", GapToLeader: "+1.234" } }}
@@ -326,7 +301,7 @@ describe("TimingTower", () => {
           qualifyingGaps={{ "3": 0 }}
         />
       );
-      expect(screen.getByText("Gap")).not.toHaveAttribute("role");
+      expect(screen.queryByText("Int")).not.toBeInTheDocument();
     });
   });
 

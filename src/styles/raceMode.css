@@ -171,7 +171,7 @@
 /* ---- timing tower ---- */
 .tower-row {
   display: grid;
-  grid-template-columns: 24px 30px 1fr 60px 22px 20px 60px 52px 52px 52px 28px 96px 40px 40px;
+  grid-template-columns: 24px 30px 1fr 60px 52px 22px 20px 60px 52px 52px 52px 28px 96px 40px 40px;
   align-items: center;
   gap: 8px;
   padding: 6px 4px;
@@ -194,14 +194,6 @@
 .tower-row.tower-header .gap,
 .tower-row.tower-header .speed-trap {
   color: var(--text-faint);
-}
-.tower-row.tower-header .gap-toggle {
-  cursor: pointer;
-  user-select: none;
-}
-.tower-row.tower-header .gap-toggle:hover,
-.tower-row.tower-header .gap-toggle:focus-visible {
-  color: var(--teal, #4fd1c5);
 }
 .tower-row:last-child {
   border-bottom: none;
@@ -920,6 +912,11 @@
 }
 
 /* ---- race control feed ---- */
+.rc-feed-list {
+  max-height: 260px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
 .rc-item {
   display: flex;
   gap: 10px;
