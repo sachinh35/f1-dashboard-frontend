@@ -964,6 +964,55 @@
   background: var(--panel-850);
   color: var(--text-lo);
 }
+.cat-safety-car {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.rc-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.rc-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--panel-850);
+  border: 1px solid var(--line-800);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-faint);
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.15s ease, border-color 0.15s ease;
+}
+.rc-filter-chip:hover {
+  opacity: 0.8;
+}
+.rc-filter-chip.active {
+  opacity: 1;
+  border-color: currentcolor;
+}
+.rc-filter-chip.cat-drs.active {
+  color: var(--teal);
+}
+.rc-filter-chip.cat-flag.active {
+  color: var(--flag-yellow);
+}
+.rc-filter-chip.cat-safety-car.active {
+  color: var(--amber);
+}
+.rc-filter-chip.cat-other.active {
+  color: var(--text-hi);
+}
+.rc-filter-chip-count {
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
 
 /* ---- team radio ---- */
 .radio-item {

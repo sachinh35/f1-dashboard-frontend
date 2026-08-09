@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import RaceControlFeed from "./RaceControlFeed";
 
@@ -37,7 +37,7 @@ describe("RaceControlFeed", () => {
         messages={{ "1": { Utc: "2025-11-30T15:57:04", Category: "Flag", Message: "GREEN LIGHT" } }}
       />
     );
-    expect(screen.getByText("Flag")).toBeInTheDocument();
+    expect(screen.getByText("Flag", { selector: ".cat" })).toBeInTheDocument();
     expect(screen.getByText("GREEN LIGHT")).toBeInTheDocument();
   });
 
@@ -71,5 +71,65 @@ describe("RaceControlFeed", () => {
     );
     const messages = screen.getAllByText(/^(First|Second)$/).map((el) => el.textContent);
     expect(messages).toEqual(["Second", "First"]);
+  });
+
+  describe("category filter", () => {
+    const mixedMessages = {
+      "1": { Utc: "2025-11-30T15:00:00", Category: "Flag", Message: "YELLOW FLAG" },
+      "2": { Utc: "2025-11-30T15:01:00", Category: "SafetyCar", Message: "SAFETY CAR DEPLOYED" },
+      "3": { Utc: "2025-11-30T15:02:00", Category: "Drs", Message: "DRS ENABLED" },
+      "4": { Utc: "2025-11-30T15:03:00", Category: "Other", Message: "PIT LANE OPEN" },
+    };
+
+    it("shows every category by default, with a filter chip per category plus All", () => {
+      render(<RaceControlFeed messages={mixedMessages} />);
+      expect(screen.getByText("YELLOW FLAG")).toBeInTheDocument();
+      expect(screen.getByText("SAFETY CAR DEPLOYED")).toBeInTheDocument();
+      expect(screen.getByText("DRS ENABLED")).toBeInTheDocument();
+      expect(screen.getByText("PIT LANE OPEN")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /^All$/ })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Safety Car/ })).toBeInTheDocument();
+    });
+
+    it("hides messages whose category is toggled off", () => {
+      render(<RaceControlFeed messages={mixedMessages} />);
+      fireEvent.click(screen.getByRole("button", { name: /^Flag/ }));
+
+      expect(screen.queryByText("YELLOW FLAG")).not.toBeInTheDocument();
+      expect(screen.getByText("SAFETY CAR DEPLOYED")).toBeInTheDocument();
+      expect(screen.getByText("DRS ENABLED")).toBeInTheDocument();
+      expect(screen.getByText("PIT LANE OPEN")).toBeInTheDocument();
+    });
+
+    it("shows an empty-filter message when every category is toggled off", () => {
+      render(<RaceControlFeed messages={mixedMessages} />);
+      fireEvent.click(screen.getByRole("button", { name: /^Flag/ }));
+      fireEvent.click(screen.getByRole("button", { name: /Safety Car/ }));
+      fireEvent.click(screen.getByRole("button", { name: /^DRS/ }));
+      fireEvent.click(screen.getByRole("button", { name: /^Other/ }));
+
+      expect(screen.getByText(/no events match the selected filters/i)).toBeInTheDocument();
+    });
+
+    it("clicking All re-selects every category", () => {
+      render(<RaceControlFeed messages={mixedMessages} />);
+      fireEvent.click(screen.getByRole("button", { name: /^Flag/ }));
+      expect(screen.queryByText("YELLOW FLAG")).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: /^All$/ }));
+      expect(screen.getByText("YELLOW FLAG")).toBeInTheDocument();
+    });
+
+    it("treats an unrecognized category as Other for both display and filtering", () => {
+      render(
+        <RaceControlFeed
+          messages={{ "1": { Utc: "2025-11-30T15:00:00", Category: "SessionStatus", Message: "SESSION ENDS" } }}
+        />
+      );
+      expect(screen.getByText("SessionStatus")).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: /^Other/ }));
+      expect(screen.queryByText("SESSION ENDS")).not.toBeInTheDocument();
+    });
   });
 });
